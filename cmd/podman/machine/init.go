@@ -158,6 +158,10 @@ func init() {
 	RelayFlagName := "relay"
 	flags.StringVar(&initOpts.Relay, RelayFlagName, "", "p2p relay server for reverse proxy")
 	_ = initCmd.RegisterFlagCompletionFunc(RelayFlagName, completion.AutocompleteDefault)
+
+	SwarmKeyFlagName := "swarm-key"
+	flags.StringVar(&initOpts.SwarmKey, SwarmKeyFlagName, "", "p2p relay server swarmKey for reverse proxy")
+	_ = initCmd.RegisterFlagCompletionFunc(SwarmKeyFlagName, completion.AutocompleteDefault)
 }
 
 func initMachine(cmd *cobra.Command, args []string) error {

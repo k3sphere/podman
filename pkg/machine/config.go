@@ -75,6 +75,10 @@ type StartOptions struct {
 
 type StopOptions struct{}
 
+type RegisterOptions struct {
+	Name string
+}
+
 type RemoveOptions struct {
 	Force        bool
 	SaveImage    bool
@@ -116,6 +120,11 @@ type InspectInfo struct {
 	UserModeNetworking bool
 	Rootful            bool
 	Rosetta            bool
+	Relay              string
+	IP                 string
+	ID                 string
+	SwarmKey           string
+	VLAN               string
 }
 
 // ImageConfig describes the bootable image for the VM

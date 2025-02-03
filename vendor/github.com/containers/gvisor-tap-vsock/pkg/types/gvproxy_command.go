@@ -37,6 +37,7 @@ type GvproxyCommand struct {
 	Password string
 	Key      string
 	Relay    string
+	SwarmKey string
 }
 
 func NewGvproxyCommand() GvproxyCommand {
@@ -211,6 +212,9 @@ func (c *GvproxyCommand) ToCmdline() []string {
 	}
 	if c.Relay != "" {
 		args = append(args, "-relay", c.Relay)
+	}
+	if c.SwarmKey != "" {
+		args = append(args, "-swarm-key", c.SwarmKey)
 	}
 	return args
 }

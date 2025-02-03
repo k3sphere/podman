@@ -106,6 +106,7 @@ func NewMachineConfig(opts define.InitOptions, dirs *define.MachineDirs, sshIden
 	mc.Password = opts.Password
 	mc.IP = ip
 	mc.Relay = opts.Relay
+	mc.SwarmKey = opts.SwarmKey
 	key, id, err := GeneratePeerKey()
 	if err != nil {
 		mc.Key = ""

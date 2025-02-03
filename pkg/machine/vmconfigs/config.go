@@ -61,6 +61,7 @@ type MachineConfig struct {
 	Key      string
 	ID       string
 	Relay    string
+	SwarmKey string
 }
 
 type machineImage interface { //nolint:unused

@@ -94,6 +94,11 @@ func inspect(cmd *cobra.Command, args []string) error {
 			UserModeNetworking: provider.UserModeNetworkEnabled(mc),
 			Rootful:            mc.HostUser.Rootful,
 			Rosetta:            rosetta,
+			Relay:              mc.Relay,
+			IP:                 mc.IP,
+			ID:                 mc.ID,
+			SwarmKey:           mc.SwarmKey,
+			VLAN:               mc.VLAN,
 		}
 
 		vms = append(vms, ii)

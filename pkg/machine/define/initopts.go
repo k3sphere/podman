@@ -23,4 +23,5 @@ type InitOptions struct {
 	VLAN               string
 	Password           string
 	Relay              string
+	SwarmKey           string
 }
