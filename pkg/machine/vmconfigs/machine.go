@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -20,6 +21,8 @@ import (
 	"github.com/containers/storage/pkg/fileutils"
 	"github.com/containers/storage/pkg/ioutils"
 	"github.com/containers/storage/pkg/lockfile"
+	"github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/sirupsen/logrus"
 )
 
@@ -97,7 +100,47 @@ func NewMachineConfig(opts define.InitOptions, dirs *define.MachineDirs, sshIden
 
 	mc.HostUser = HostUser{UID: getHostUID(), Rootful: opts.Rootful}
 
+	ip, subnet, _ := calculateIpAndSubnet(opts.IP)
+	mc.Subnet = subnet
+	mc.VLAN = opts.VLAN
+	mc.Password = opts.Password
+	mc.IP = ip
+	mc.Relay = opts.Relay
+	key, id, err := GeneratePeerKey()
+	if err != nil {
+		mc.Key = ""
+		mc.ID = ""
+	} else {
+		mc.Key = key
+		mc.ID = id
+
+	}
+
 	return mc, nil
+}
+
+func GeneratePeerKey() (string, string, error) {
+	privk, _, err := crypto.GenerateKeyPair(crypto.Ed25519, 0)
+	if err != nil {
+		return "", "", err
+	}
+
+	bytes, err := crypto.MarshalPrivateKey(privk)
+	if err != nil {
+		return "", "", err
+	}
+
+	id, _ := peer.IDFromPrivateKey(privk)
+
+	return crypto.ConfigEncodeKey(bytes), id.String(), nil
+}
+
+func calculateIpAndSubnet(cidr string) (string, string, error) {
+	// Parse the CIDR block
+	ip, ipNet, err := net.ParseCIDR(cidr)
+
+	// Return the IP address and the CIDR block
+	return ip.String(), ipNet.String(), err
 }
 
 // Lock creates a lock on the machine for single access
@@ -349,6 +392,13 @@ func LoadMachineByName(name string, dirs *define.MachineDirs) (*MachineConfig, e
 	}
 	mc.dirs = dirs
 	mc.configPath = fullPath
+	if mc.Key == "" {
+		key, id, err := GeneratePeerKey()
+		if err == nil {
+			mc.Key = key
+			mc.ID = id
+		}
+	}
 
 	// If we find an incompatible configuration, we return a hard
 	// error because the user wants to deal directly with this

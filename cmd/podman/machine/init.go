@@ -5,6 +5,7 @@ package machine
 import (
 	"fmt"
 	"os"
+	"runtime"
 
 	"github.com/containers/common/pkg/completion"
 	"github.com/containers/common/pkg/strongunits"
@@ -141,6 +142,22 @@ func init() {
 	userModeNetFlagName := "user-mode-networking"
 	flags.BoolVar(&initOptionalFlags.UserModeNetworking, userModeNetFlagName, false,
 		"Whether this machine should use user-mode networking, routing traffic through a host user-space process")
+
+	IpFlagName := "ip"
+	flags.StringVar(&initOpts.IP, IpFlagName, "192.168.127.2/24", "VM ip address")
+	_ = initCmd.RegisterFlagCompletionFunc(IpFlagName, completion.AutocompleteDefault)
+
+	VLANFlagName := "vlan"
+	flags.StringVar(&initOpts.VLAN, VLANFlagName, "", "VM VLAN")
+	_ = initCmd.RegisterFlagCompletionFunc(VLANFlagName, completion.AutocompleteDefault)
+
+	PasswordFlagName := "password"
+	flags.StringVar(&initOpts.Password, PasswordFlagName, "Pass0rd", "Password for VLAN")
+	_ = initCmd.RegisterFlagCompletionFunc(PasswordFlagName, completion.AutocompleteDefault)
+
+	RelayFlagName := "relay"
+	flags.StringVar(&initOpts.Relay, RelayFlagName, "", "p2p relay server for reverse proxy")
+	_ = initCmd.RegisterFlagCompletionFunc(RelayFlagName, completion.AutocompleteDefault)
 }
 
 func initMachine(cmd *cobra.Command, args []string) error {
@@ -198,6 +215,12 @@ func initMachine(cmd *cobra.Command, args []string) error {
 	// Process optional flags (flags where unspecified / nil has meaning )
 	if cmd.Flags().Changed("user-mode-networking") {
 		initOpts.UserModeNetworking = &initOptionalFlags.UserModeNetworking
+	} else if runtime.GOOS == "windows" {
+		//*initOpts.UserModeNetworking = true
+		if initOpts.UserModeNetworking == nil {
+			initOpts.UserModeNetworking = new(bool)
+		}
+		*initOpts.UserModeNetworking = true
 	}
 
 	if cmd.Flags().Changed("memory") {

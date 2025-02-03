@@ -133,7 +133,7 @@ func createKeys(mc *vmconfigs.MachineConfig, dist string) error {
 
 	key := string(pubKey)
 
-	if err := wslPipe(key+"\n", dist, "sh", "-c", "mkdir -p /root/.ssh;"+
+	if err := wslPipe(key+"\n", dist, []string{}, "sh", "-c", "mkdir -p /root/.ssh;"+
 		"cat >> /root/.ssh/authorized_keys; chmod 600 /root/.ssh/authorized_keys"); err != nil {
 		return fmt.Errorf("could not create root authorized keys on guest OS: %w", err)
 	}
@@ -141,7 +141,7 @@ func createKeys(mc *vmconfigs.MachineConfig, dist string) error {
 	userAuthCmd := withUser("mkdir -p /home/[USER]/.ssh;"+
 		"cat >> /home/[USER]/.ssh/authorized_keys; chown -R [USER]:[USER] /home/[USER]/.ssh;"+
 		"chmod 600 /home/[USER]/.ssh/authorized_keys", user)
-	if err := wslPipe(key+"\n", dist, "sh", "-c", userAuthCmd); err != nil {
+	if err := wslPipe(key+"\n", dist, []string{}, "sh", "-c", userAuthCmd); err != nil {
 		return fmt.Errorf("could not create '%s' authorized keys on guest OS: %w", user, err)
 	}
 
@@ -154,21 +154,21 @@ func configureSystem(mc *vmconfigs.MachineConfig, dist string) error {
 		return fmt.Errorf("could not configure SSH port for guest OS: %w", err)
 	}
 
-	if err := wslPipe(withUser(configServices, user), dist, "sh"); err != nil {
+	if err := wslPipe(withUser(configServices, user), dist, []string{}, "sh"); err != nil {
 		return fmt.Errorf("could not configure systemd settings for guest OS: %w", err)
 	}
 
-	if err := wslPipe(sudoers, dist, "sh", "-c", "cat >> /etc/sudoers"); err != nil {
+	if err := wslPipe(sudoers, dist, []string{}, "sh", "-c", "cat >> /etc/sudoers"); err != nil {
 		return fmt.Errorf("could not add wheel to sudoers: %w", err)
 	}
 
-	if err := wslPipe(overrideSysusers, dist, "sh", "-c",
+	if err := wslPipe(overrideSysusers, dist, []string{}, "sh", "-c",
 		"cat > /etc/systemd/system/systemd-sysusers.service.d/override.conf"); err != nil {
 		return fmt.Errorf("could not generate systemd-sysusers override for guest OS: %w", err)
 	}
 
 	lingerCmd := withUser("cat > /home/[USER]/.config/systemd/[USER]/linger-example.service", user)
-	if err := wslPipe(lingerService, dist, "sh", "-c", lingerCmd); err != nil {
+	if err := wslPipe(lingerService, dist, []string{}, "sh", "-c", lingerCmd); err != nil {
 		return fmt.Errorf("could not generate linger service for guest OS: %w", err)
 	}
 
@@ -176,11 +176,11 @@ func configureSystem(mc *vmconfigs.MachineConfig, dist string) error {
 		return err
 	}
 
-	if err := wslPipe(withUser(lingerSetup, user), dist, "sh"); err != nil {
+	if err := wslPipe(withUser(lingerSetup, user), dist, []string{}, "sh"); err != nil {
 		return fmt.Errorf("could not configure systemd settings for guest OS: %w", err)
 	}
 
-	if err := wslPipe(containersConf, dist, "sh", "-c", "cat > /etc/containers/containers.conf"); err != nil {
+	if err := wslPipe(containersConf, dist, []string{}, "sh", "-c", "cat > /etc/containers/containers.conf"); err != nil {
 		return fmt.Errorf("could not create containers.conf for guest OS: %w", err)
 	}
 
@@ -204,25 +204,25 @@ func configureSystem(mc *vmconfigs.MachineConfig, dist string) error {
 }
 
 func configureBindMounts(dist string, user string) error {
-	if err := wslPipe(fmt.Sprintf(bindMountSystemService, dist), dist, "sh", "-c", "cat > /etc/systemd/system/podman-mnt-bindings.service"); err != nil {
+	if err := wslPipe(fmt.Sprintf(bindMountSystemService, dist), dist, []string{}, "sh", "-c", "cat > /etc/systemd/system/podman-mnt-bindings.service"); err != nil {
 		return fmt.Errorf("could not create podman binding service file for guest OS: %w", err)
 	}
 
 	catUserService := "cat > " + getUserUnitPath(user)
-	if err := wslPipe(getBindMountUserService(dist), dist, "sh", "-c", catUserService); err != nil {
+	if err := wslPipe(getBindMountUserService(dist), dist, []string{}, "sh", "-c", catUserService); err != nil {
 		return fmt.Errorf("could not create podman binding user service file for guest OS: %w", err)
 	}
 
-	if err := wslPipe(getBindMountFsTab(dist), dist, "sh", "-c", "cat >> /etc/fstab"); err != nil {
+	if err := wslPipe(getBindMountFsTab(dist), dist, []string{}, "sh", "-c", "cat >> /etc/fstab"); err != nil {
 		return fmt.Errorf("could not create podman binding fstab entry for guest OS: %w", err)
 	}
 
-	if err := wslPipe(getConfigBindServicesScript(user), dist, "sh"); err != nil {
+	if err := wslPipe(getConfigBindServicesScript(user), dist, []string{}, "sh"); err != nil {
 		return fmt.Errorf("could not configure podman binding services for guest OS: %w", err)
 	}
 
 	catGroupDropin := fmt.Sprintf("cat > %s/%s", podmanSocketDropinPath, "10-group.conf")
-	if err := wslPipe(overrideSocketGroup, dist, "sh", "-c", catGroupDropin); err != nil {
+	if err := wslPipe(overrideSocketGroup, dist, []string{}, "sh", "-c", catGroupDropin); err != nil {
 		return fmt.Errorf("could not configure podman socket group override: %w", err)
 	}
 
@@ -248,7 +248,7 @@ func getBindMountFsTab(dist string) string {
 func setupPodmanDockerSock(dist string, rootful bool) error {
 	content := ignition.GetPodmanDockerTmpConfig(1000, rootful, true)
 
-	if err := wslPipe(content, dist, "sh", "-c", "cat > "+ignition.PodmanDockerTmpConfPath); err != nil {
+	if err := wslPipe(content, dist, []string{}, "sh", "-c", "cat > "+ignition.PodmanDockerTmpConfPath); err != nil {
 		return fmt.Errorf("could not create internal docker sock conf: %w", err)
 	}
 
@@ -266,7 +266,7 @@ func enableUserLinger(mc *vmconfigs.MachineConfig, dist string) error {
 
 func configureRegistries(dist string) error {
 	cmd := "cat > /etc/containers/registries.conf.d/999-podman-machine.conf"
-	if err := wslPipe(registriesConf, dist, "sh", "-c", cmd); err != nil {
+	if err := wslPipe(registriesConf, dist, []string{}, "sh", "-c", cmd); err != nil {
 		return fmt.Errorf("could not configure registries on guest OS: %w", err)
 	}
 
@@ -274,21 +274,21 @@ func configureRegistries(dist string) error {
 }
 
 func installScripts(dist string) error {
-	if err := wslPipe(enterns, dist, "sh", "-c",
+	if err := wslPipe(enterns, dist, []string{}, "sh", "-c",
 		"cat > /usr/local/bin/enterns; chmod 755 /usr/local/bin/enterns"); err != nil {
 		return fmt.Errorf("could not create enterns script for guest OS: %w", err)
 	}
 
-	if err := wslPipe(profile, dist, "sh", "-c",
+	if err := wslPipe(profile, dist, []string{}, "sh", "-c",
 		"cat > /etc/profile.d/enterns.sh"); err != nil {
 		return fmt.Errorf("could not create motd profile script for guest OS: %w", err)
 	}
 
-	if err := wslPipe(wslmotd, dist, "sh", "-c", "cat > /etc/wslmotd"); err != nil {
+	if err := wslPipe(wslmotd, dist, []string{}, "sh", "-c", "cat > /etc/wslmotd"); err != nil {
 		return fmt.Errorf("could not create a WSL MOTD for guest OS: %w", err)
 	}
 
-	if err := wslPipe(bootstrap, dist, "sh", "-c",
+	if err := wslPipe(bootstrap, dist, []string{}, "sh", "-c",
 		"cat > /root/bootstrap; chmod 755 /root/bootstrap"); err != nil {
 		return fmt.Errorf("could not create bootstrap script for guest OS: %w", err)
 	}
@@ -297,7 +297,7 @@ func installScripts(dist string) error {
 }
 
 func writeWslConf(dist string, user string) error {
-	if err := wslPipe(withUser(wslConf, user), dist, "sh", "-c", "cat > /etc/wsl.conf"); err != nil {
+	if err := wslPipe(withUser(wslConf, user), dist, []string{}, "sh", "-c", "cat > /etc/wsl.conf"); err != nil {
 		return fmt.Errorf("could not configure wsl config for guest OS: %w", err)
 	}
 
@@ -534,10 +534,10 @@ func wslInvoke(dist string, arg ...string) error {
 	return runCmdPassThrough(wutil.FindWSL(), newArgs...)
 }
 
-func wslPipe(input string, dist string, arg ...string) error {
+func wslPipe(input string, dist string, env []string, arg ...string) error {
 	newArgs := []string{"-u", "root", "-d", dist}
 	newArgs = append(newArgs, arg...)
-	return pipeCmdPassThrough(wutil.FindWSL(), input, newArgs...)
+	return pipeCmdPassThrough(wutil.FindWSL(), input, env, newArgs...)
 }
 
 //nolint:unused
@@ -572,12 +572,13 @@ func runCmdPassThroughTee(out io.Writer, name string, arg ...string) error {
 	return nil
 }
 
-func pipeCmdPassThrough(name string, input string, arg ...string) error {
+func pipeCmdPassThrough(name string, input string, env []string, arg ...string) error {
 	logrus.Debugf("Running command: %s %v", name, arg)
 	cmd := exec.Command(name, arg...)
 	cmd.Stdin = strings.NewReader(input)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	cmd.Env = env
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("command %s %v failed: %w", name, arg, err)
 	}

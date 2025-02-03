@@ -2,6 +2,7 @@ package machine
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -22,6 +23,10 @@ func CommonSSH(username, identityPath, name string, sshPort int, inputArgs []str
 
 func CommonSSHShell(username, identityPath, name string, sshPort int, inputArgs []string) error {
 	return commonNativeSSH(username, identityPath, name, sshPort, inputArgs, os.Stdin)
+}
+
+func CommonSSHShellString(username, identityPath, name string, sshPort int, inputArgs []string) ([]byte, error) {
+	return commonNativeSSHString(username, identityPath, name, sshPort, inputArgs, os.Stdin)
 }
 
 func CommonSSHSilent(username, identityPath, name string, sshPort int, inputArgs []string) error {
@@ -137,4 +142,34 @@ func commonNativeSSH(username, identityPath, name string, sshPort int, inputArgs
 	}
 
 	return cmd.Run()
+}
+
+func commonNativeSSHString(username, identityPath, name string, sshPort int, inputArgs []string, stdin io.Reader) ([]byte, error) {
+	sshDestination := username + "@localhost"
+	port := strconv.Itoa(sshPort)
+
+	args := []string{"-i", identityPath, "-p", port, sshDestination,
+		"-o", "IdentitiesOnly=yes",
+		"-o", "StrictHostKeyChecking=no",
+		"-o", "UserKnownHostsFile=" + os.DevNull,
+		"-o", "CheckHostIP=no",
+		"-o", "LogLevel=ERROR", "-o", "SetEnv=LC_ALL="}
+	if len(inputArgs) > 0 {
+		args = append(args, inputArgs...)
+	} else {
+		// ensure we have a tty
+		args = append(args, "-t")
+		fmt.Printf("Connecting to vm %s. To close connection, use `~.` or `exit`\n", name)
+	}
+
+	cmd := exec.Command("ssh", args...)
+	logrus.Debugf("Executing: ssh %v\n", args)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return nil, fmt.Errorf("command failed: %v\nstderr: %s", err, stderr.String())
+	}
+
+	return stdout.Bytes(), nil
 }

@@ -5,9 +5,11 @@ package wsl
 import (
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/containers/podman/v5/pkg/machine"
 	"github.com/containers/podman/v5/pkg/machine/env"
@@ -26,7 +28,7 @@ mkdir -p $STATE
 cp -f /mnt/wsl/resolv.conf $STATE/resolv.orig
 ip route show default > $STATE/route.dat
 ROUTE=$(<$STATE/route.dat)
-if [[ $ROUTE =~ .*192\.168\.127\.1.* ]]; then
+if [[ $ROUTE =~ .*$ROUTE_PATTERN.* ]]; then
 	exit 2
 fi
 if [[ ! $ROUTE =~ default\ via ]]; then
@@ -99,12 +101,23 @@ func startUserModeNetworking(mc *vmconfigs.MachineConfig) error {
 
 	// Start or reuse
 	if !running {
-		if err := launchUserModeNetDist(exe); err != nil {
+		env := os.Environ()                                        // Inherit parent environment
+		env = append(env, fmt.Sprintf("ip=%s", mc.IP))             // Add custom variable
+		env = append(env, fmt.Sprintf("subnet=%s", mc.Subnet))     // Add custom variable
+		env = append(env, fmt.Sprintf("vlan=%s", mc.VLAN))         // Add custom variable
+		env = append(env, fmt.Sprintf("password=%s", mc.Password)) // Add custom variable
+		env = append(env, fmt.Sprintf("key=%s", mc.Key))           // Add custom variable
+		env = append(env, fmt.Sprintf("relay=%s", mc.Relay))       // Add custom variable
+		if err := launchUserModeNetDist(exe, mc.Subnet, env); err != nil {
 			return err
 		}
 	}
 
-	if err := createUserModeResolvConf(env.WithPodmanPrefix(mc.Name)); err != nil {
+	gateway, err := getGatewayIP(mc.Subnet)
+	if err != nil {
+		return err
+	}
+	if err := createUserModeResolvConf(env.WithPodmanPrefix(mc.Name), gateway); err != nil {
 		return err
 	}
 
@@ -147,7 +160,7 @@ func stopUserModeNetworking(mc *vmconfigs.MachineConfig) error {
 
 	fmt.Println("Stopping user-mode networking...")
 
-	err = wslPipe(stopUserModeNet, userModeDist, "bash")
+	err = wslPipe(stopUserModeNet, userModeDist, []string{}, "bash")
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			switch exitErr.ExitCode() {
@@ -168,7 +181,7 @@ func isGvProxyVMRunning() bool {
 	return wslInvoke(userModeDist, "bash", "-c", cmd) == nil
 }
 
-func launchUserModeNetDist(exeFile string) error {
+func launchUserModeNetDist(exeFile string, subnet string, env []string) error {
 	fmt.Println("Starting user-mode networking...")
 
 	exe, err := specgen.ConvertWinMountPath(exeFile)
@@ -176,8 +189,12 @@ func launchUserModeNetDist(exeFile string) error {
 		return err
 	}
 
-	cmdStr := fmt.Sprintf("GVPROXY=%q\nGVFORWARDER=%q\n%s", exe, gvForwarderPath, startUserModeNet)
-	if err := wslPipe(cmdStr, userModeDist, "bash"); err != nil {
+	gateway, err := getGatewayIP(subnet)
+	if err != nil {
+		return err
+	}
+	cmdStr := fmt.Sprintf("GVPROXY=%q\nGVFORWARDER=%q\nROUTE_PATTERN=%q\n%s", exe, gvForwarderPath, strings.ReplaceAll(gateway, ".", `\.`), startUserModeNet)
+	if err := wslPipe(cmdStr, userModeDist, env, "bash"); err != nil {
 		_ = terminateDist(userModeDist)
 
 		if exitErr, ok := err.(*exec.ExitError); ok {
@@ -232,8 +249,8 @@ func installUserModeDist(dist string, imagePath string) error {
 	return nil
 }
 
-func createUserModeResolvConf(dist string) error {
-	err := wslPipe(resolvConfUserNet, dist, "bash", "-c", "(rm -f /etc/resolv.conf; cat > /etc/resolv.conf)")
+func createUserModeResolvConf(dist string, gateway string) error {
+	err := wslPipe("nameserver "+gateway, dist, []string{}, "bash", "-c", "(rm -f /etc/resolv.conf; cat > /etc/resolv.conf)")
 	if err != nil {
 		return fmt.Errorf("could not create resolv.conf: %w", err)
 	}
@@ -361,9 +378,33 @@ func changeDistUserModeNetworking(dist string, user string, image string, enable
 }
 
 func appendDisableAutoResolve(dist string) error {
-	if err := wslPipe(wslConfUserNet, dist, "sh", "-c", "cat >> /etc/wsl.conf"); err != nil {
+	if err := wslPipe(wslConfUserNet, dist, []string{}, "sh", "-c", "cat >> /etc/wsl.conf"); err != nil {
 		return fmt.Errorf("could not append resolv config to wsl.conf: %w", err)
 	}
 
 	return nil
+}
+
+func getGatewayIP(cidr string) (string, error) {
+	// Parse the CIDR block
+	_, ipNet, err := net.ParseCIDR(cidr)
+	if err != nil {
+		return "", fmt.Errorf("invalid CIDR: %v", err)
+	}
+
+	// Get the network address as a 4-byte slice
+	ip := ipNet.IP.To4()
+	if ip == nil {
+		return "", fmt.Errorf("not an IPv4 CIDR: %s", cidr)
+	}
+
+	// Increment the last byte to get the gateway IP
+	ip[3]++
+
+	// Check if the incremented IP is still within the subnet
+	if !ipNet.Contains(ip) {
+		return "", fmt.Errorf("invalid gateway for subnet: %s", cidr)
+	}
+
+	return ip.String(), nil
 }
