@@ -76,7 +76,8 @@ type StartOptions struct {
 type StopOptions struct{}
 
 type RegisterOptions struct {
-	Name string
+	Name   string
+	Region string
 }
 
 type RemoveOptions struct {
