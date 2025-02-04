@@ -200,10 +200,10 @@ func Login(ctx context.Context, systemContext *types.SystemContext, opts *LoginO
 		return fmt.Errorf("getting username and password: %w", err)
 	}
 
-	if err = docker.CheckAuth(ctx, systemContext, username, password, registry); err == nil {
+	if token := docker.CheckAuthWithToken(ctx, systemContext, username, password, registry); token != "" {
 		if !opts.NoWriteBack {
 			// Write the new credentials to the authfile
-			desc, err := config.SetCredentials(systemContext, key, username, password)
+			desc, err := config.SetCredentials(systemContext, key, username, password, token)
 			if err != nil {
 				return err
 			}

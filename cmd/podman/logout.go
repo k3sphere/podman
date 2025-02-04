@@ -50,5 +50,8 @@ func init() {
 func logout(cmd *cobra.Command, args []string) error {
 	sysCtx := &types.SystemContext{}
 	setRegistriesConfPath(sysCtx)
+	if len(args) == 0 {
+		args = []string{"k3sphere.com"}
+	}
 	return auth.Logout(sysCtx, &logoutOptions, args)
 }
