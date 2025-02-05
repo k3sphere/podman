@@ -25,8 +25,10 @@ type Payload struct {
 }
 
 type Body struct {
-	Token string `json:"token"`
-	Relay string `json:"relay"`
+	SwarmKey string `json:"swarmKey"`
+	Token    string `json:"token"`
+	Error    string `json:"error"`
+	Relay    string `json:"relay"`
 }
 
 var (
@@ -142,14 +144,18 @@ func register(_ *cobra.Command, args []string) error {
 		fmt.Println("Error decoding response:", err)
 		os.Exit(1)
 	}
-	fmt.Println("Please put the token below into your DNS TXT record with the same name as your domain")
-	mc.Lock()
-	defer mc.Unlock()
-	mc.Relay = result.Relay
-	mc.SwarmKey = ""
-	mc.Write()
-	fmt.Println(result.Token)
-
+	fmt.Println(resp)
+	if result.Error != "" {
+		fmt.Println("error happend ", result.Error)
+	} else {
+		fmt.Println("Please put the token below into your DNS TXT record with the same name as your domain")
+		mc.Lock()
+		defer mc.Unlock()
+		mc.Relay = result.Relay
+		mc.SwarmKey = result.SwarmKey
+		mc.Write()
+		fmt.Println(result.Token)
+	}
 	return nil
 }
 
