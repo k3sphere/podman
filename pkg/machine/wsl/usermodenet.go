@@ -109,8 +109,8 @@ func startUserModeNetworking(mc *vmconfigs.MachineConfig) error {
 		env = append(env, fmt.Sprintf("key=%s", mc.Key))              // Add custom variable
 		env = append(env, fmt.Sprintf("relay=%s", mc.Relay))          // Add custom variable
 		env = append(env, fmt.Sprintf("swarm-key=%s", mc.SwarmKey))   // Add custom variable
-		env = append(env, fmt.Sprintf("certificate=%s", mc.SwarmKey)) // Add custom variable
-
+		env = append(env, fmt.Sprintf("private-key=%s", mc.PrivateKey))
+		env = append(env, fmt.Sprintf("ca=%s", mc.CaCert))
 		if err := launchUserModeNetDist(exe, mc.Subnet, env); err != nil {
 			return err
 		}

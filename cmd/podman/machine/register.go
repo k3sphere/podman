@@ -29,12 +29,13 @@ type Payload struct {
 }
 
 type Body struct {
-	SwarmKey    string `json:"swarmKey"`
-	Token       string `json:"token"`
-	Error       string `json:"error"`
-	Relay       string `json:"relay"`
-	VLAN        string `json:"vlan"`
-	Certificate string `json:"certificate"`
+	SwarmKey   string `json:"swarmKey"`
+	Token      string `json:"token"`
+	Error      string `json:"error"`
+	Relay      string `json:"relay"`
+	VLAN       string `json:"vlan"`
+	PrivateKey string `json:"privateKey"`
+	CaCert     string `json:"caCert"`
 }
 
 var (
@@ -175,7 +176,8 @@ func register(_ *cobra.Command, args []string) error {
 		mc.Relay = result.Relay
 		mc.SwarmKey = result.SwarmKey
 		mc.VLAN = result.VLAN
-		mc.Certificate = result.Certificate
+		mc.PrivateKey = result.PrivateKey
+		mc.CaCert = result.CaCert
 		mc.Write()
 		if registerOptions.Gateway != "" {
 			fmt.Println("successfully registered the machine")
