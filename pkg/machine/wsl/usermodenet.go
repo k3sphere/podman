@@ -101,16 +101,14 @@ func startUserModeNetworking(mc *vmconfigs.MachineConfig) error {
 
 	// Start or reuse
 	if !running {
-		env := os.Environ()                                           // Inherit parent environment
-		env = append(env, fmt.Sprintf("ip=%s", mc.IP))                // Add custom variable
-		env = append(env, fmt.Sprintf("subnet=%s", mc.Subnet))        // Add custom variable
-		env = append(env, fmt.Sprintf("vlan=%s", mc.VLAN))            // Add custom variable
-		env = append(env, fmt.Sprintf("password=%s", mc.Password))    // Add custom variable
-		env = append(env, fmt.Sprintf("key=%s", mc.Key))              // Add custom variable
-		env = append(env, fmt.Sprintf("relay=%s", mc.Relay))          // Add custom variable
-		env = append(env, fmt.Sprintf("swarm-key=%s", mc.SwarmKey))   // Add custom variable
-		env = append(env, fmt.Sprintf("private-key=%s", mc.PrivateKey))
-		env = append(env, fmt.Sprintf("ca=%s", mc.CaCert))
+		env := os.Environ()                                         // Inherit parent environment
+		env = append(env, fmt.Sprintf("ip=%s", mc.IP))              // Add custom variable
+		env = append(env, fmt.Sprintf("subnet=%s", mc.Subnet))      // Add custom variable
+		env = append(env, fmt.Sprintf("vlan=%s", mc.VLAN))          // Add custom variable
+		env = append(env, fmt.Sprintf("password=%s", mc.Password))  // Add custom variable
+		env = append(env, fmt.Sprintf("key=%s", mc.Key))            // Add custom variable
+		env = append(env, fmt.Sprintf("relay=%s", mc.Relay))        // Add custom variable
+		env = append(env, fmt.Sprintf("swarm-key=%s", mc.SwarmKey)) // Add custom variable
 		if err := launchUserModeNetDist(exe, mc.Subnet, env); err != nil {
 			return err
 		}
