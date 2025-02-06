@@ -12,6 +12,7 @@ import (
 	"github.com/containers/image/v5/types"
 	"github.com/containers/podman/v5/cmd/podman/registry"
 	"github.com/containers/podman/v5/pkg/machine"
+	"github.com/containers/podman/v5/pkg/machine/define"
 	"github.com/containers/podman/v5/pkg/machine/env"
 	"github.com/containers/podman/v5/pkg/machine/vmconfigs"
 	"github.com/spf13/cobra"
@@ -32,6 +33,7 @@ type Body struct {
 	Token    string `json:"token"`
 	Error    string `json:"error"`
 	Relay    string `json:"relay"`
+	VLAN     string `json:"vlan"`
 }
 
 var (
@@ -88,6 +90,14 @@ func register(_ *cobra.Command, args []string) error {
 	mc, err := vmconfigs.LoadMachineByName(vmName, dirs)
 	if err != nil {
 		return err
+	}
+
+	state, err := provider.State(mc, false)
+	if err != nil {
+		return err
+	}
+	if state != define.Stopped {
+		return fmt.Errorf("vm %q is running", mc.Name)
 	}
 
 	if registerOptions.Name == "" {
@@ -159,15 +169,17 @@ func register(_ *cobra.Command, args []string) error {
 	if result.Error != "" {
 		fmt.Println("error happend ", result.Error)
 	} else {
+		mc.Lock()
+		defer mc.Unlock()
+		mc.Relay = result.Relay
+		mc.SwarmKey = result.SwarmKey
+		mc.VLAN = result.VLAN
+		mc.Write()
 		if registerOptions.Gateway != "" {
 			fmt.Println("successfully registered the machine")
 		} else {
 			fmt.Println("Please put the token below into your DNS TXT record with the same name as your domain")
-			mc.Lock()
-			defer mc.Unlock()
-			mc.Relay = result.Relay
-			mc.SwarmKey = result.SwarmKey
-			mc.Write()
+
 			fmt.Println(result.Token)
 		}
 	}
