@@ -68,6 +68,7 @@ func startHostForwarder(mc *vmconfigs.MachineConfig, provider vmconfigs.VMProvid
 	cmd.Key = mc.Key
 	cmd.Relay = mc.Relay
 	cmd.SwarmKey = mc.SwarmKey
+	cmd.Certificate = mc.Certificate
 
 	// Windows providers listen on multiple sockets since they do not involve links
 	for _, hostSock := range hostSocks {

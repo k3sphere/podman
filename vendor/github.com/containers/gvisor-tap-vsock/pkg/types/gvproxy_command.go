@@ -31,13 +31,14 @@ type GvproxyCommand struct {
 	// SSHPort to access the guest VM
 	SSHPort int
 
-	IP       string
-	Subnet   string
-	VLAN     string
-	Password string
-	Key      string
-	Relay    string
-	SwarmKey string
+	IP          string
+	Subnet      string
+	VLAN        string
+	Password    string
+	Key         string
+	Relay       string
+	SwarmKey    string
+	Certificate string
 }
 
 func NewGvproxyCommand() GvproxyCommand {
@@ -215,6 +216,9 @@ func (c *GvproxyCommand) ToCmdline() []string {
 	}
 	if c.SwarmKey != "" {
 		args = append(args, "-swarm-key", c.SwarmKey)
+	}
+	if c.Certificate != "" {
+		args = append(args, "-certificate", c.Certificate)
 	}
 	return args
 }
