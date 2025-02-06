@@ -18,10 +18,13 @@ import (
 )
 
 type Payload struct {
-	ID     string `json:"id"`
-	Name   string `json:"name"`
-	IP     string `json:"ip"`
-	Region string `json:"region"`
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	IP      string `json:"ip"`
+	Region  string `json:"region"`
+	VLAN    string `json:"vlan"`
+	Type    string `json:"type"`
+	Gateway string `json:"gateway"`
 }
 
 type Body struct {
@@ -61,6 +64,11 @@ func init() {
 	regionFlagName := "region"
 	flags.StringVar(&registerOptions.Region, regionFlagName, "eu", "region of cdn push zone (eu,us,asia)")
 
+	typeFlagName := "type"
+	flags.StringVar(&registerOptions.Type, typeFlagName, "machine", "Type of machine")
+
+	gatewayFlagName := "gateway"
+	flags.StringVar(&registerOptions.Gateway, gatewayFlagName, "", "Used the machine is not exposed to internet")
 }
 
 func register(_ *cobra.Command, args []string) error {
@@ -104,10 +112,13 @@ func register(_ *cobra.Command, args []string) error {
 
 	// Data to be sent in JSON format
 	data := Payload{
-		ID:     mc.ID,
-		Name:   registerOptions.Name,
-		Region: registerOptions.Region,
-		IP:     mc.IP,
+		ID:      mc.ID,
+		Name:    registerOptions.Name,
+		Region:  registerOptions.Region,
+		IP:      mc.IP,
+		VLAN:    mc.VLAN,
+		Gateway: registerOptions.Gateway,
+		Type:    registerOptions.Type,
 	}
 
 	// Marshal the data to JSON
@@ -148,13 +159,17 @@ func register(_ *cobra.Command, args []string) error {
 	if result.Error != "" {
 		fmt.Println("error happend ", result.Error)
 	} else {
-		fmt.Println("Please put the token below into your DNS TXT record with the same name as your domain")
-		mc.Lock()
-		defer mc.Unlock()
-		mc.Relay = result.Relay
-		mc.SwarmKey = result.SwarmKey
-		mc.Write()
-		fmt.Println(result.Token)
+		if registerOptions.Gateway != "" {
+			fmt.Println("successfully registered the machine")
+		} else {
+			fmt.Println("Please put the token below into your DNS TXT record with the same name as your domain")
+			mc.Lock()
+			defer mc.Unlock()
+			mc.Relay = result.Relay
+			mc.SwarmKey = result.SwarmKey
+			mc.Write()
+			fmt.Println(result.Token)
+		}
 	}
 	return nil
 }

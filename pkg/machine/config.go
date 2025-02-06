@@ -67,6 +67,21 @@ type SSHOptions struct {
 	Args     []string
 }
 
+type KeyOptions struct {
+	Username string
+	Args     []string
+}
+
+type TrustOptions struct {
+	Username string
+	Args     []string
+}
+
+type RevokeOptions struct {
+	Username string
+	Args     []string
+}
+
 type StartOptions struct {
 	NoInfo  bool
 	Quiet   bool
@@ -76,8 +91,10 @@ type StartOptions struct {
 type StopOptions struct{}
 
 type RegisterOptions struct {
-	Name   string
-	Region string
+	Name    string
+	Region  string
+	Type    string
+	Gateway string
 }
 
 type RemoveOptions struct {
