@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"runtime"
 
 	"github.com/containers/image/v5/pkg/docker/config"
 	"github.com/containers/image/v5/types"
@@ -26,6 +27,8 @@ type Payload struct {
 	VLAN    string `json:"vlan"`
 	Type    string `json:"type"`
 	Gateway string `json:"gateway"`
+	Port    int `json:"port"`
+	PublicIP      string `json:"publicIp"`
 }
 
 type Body struct {
@@ -71,6 +74,9 @@ func init() {
 
 	gatewayFlagName := "gateway"
 	flags.StringVar(&registerOptions.Gateway, gatewayFlagName, "", "Used the machine is not exposed to internet")
+
+	ipFlagName := "ip"
+	flags.StringVar(&registerOptions.IP, ipFlagName, "", "accessible ip address when register the node as gateway")
 }
 
 func register(_ *cobra.Command, args []string) error {
@@ -119,7 +125,10 @@ func register(_ *cobra.Command, args []string) error {
 
 	// JWT Token
 	token := dockerConfig.IdentityToken
-
+	port := mc.SSH.Port
+	if (runtime.GOOS != "windows") {
+		port = 22
+	}
 	// Data to be sent in JSON format
 	data := Payload{
 		ID:      mc.ID,
@@ -129,6 +138,8 @@ func register(_ *cobra.Command, args []string) error {
 		VLAN:    mc.VLAN,
 		Gateway: registerOptions.Gateway,
 		Type:    registerOptions.Type,
+		Port:    port,
+		PublicIP: registerOptions.IP,
 	}
 
 	// Marshal the data to JSON

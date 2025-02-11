@@ -75,6 +75,7 @@ type KeyOptions struct {
 type TrustOptions struct {
 	Username string
 	Args     []string
+	Account string
 }
 
 type RevokeOptions struct {
@@ -95,6 +96,7 @@ type RegisterOptions struct {
 	Region  string
 	Type    string
 	Gateway string
+	IP      string
 }
 
 type RemoveOptions struct {
