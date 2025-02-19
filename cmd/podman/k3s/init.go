@@ -176,6 +176,11 @@ func ssh(cmd *cobra.Command, args []string) error {
 
 	if initOpts.ClientId != "" {
 		tlsSanArgs += fmt.Sprintf(" --kube-apiserver-arg=oidc-client-id=%s", initOpts.ClientId)
+		mc.Lock()
+		defer mc.Unlock()
+		mc.OIDC = true
+
+		mc.Write()
 	}
 	if initOpts.Issuer != "" {
 		tlsSanArgs += fmt.Sprintf(" --kube-apiserver-arg=oidc-issuer-url=%s", initOpts.Issuer)

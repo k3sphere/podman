@@ -13,6 +13,7 @@ import (
 	"github.com/containers/image/v5/types"
 	"github.com/containers/podman/v5/cmd/podman/registry"
 	define2 "github.com/containers/podman/v5/pkg/k3s/define"
+	"github.com/containers/podman/v5/pkg/machine"
 	"github.com/containers/podman/v5/pkg/machine/define"
 	"github.com/containers/podman/v5/pkg/machine/env"
 	"github.com/containers/podman/v5/pkg/machine/vmconfigs"
@@ -24,14 +25,6 @@ type Payload struct {
 	PublicKey  string `json:"publicKey"`
 	Host    string `json:"host"`
 	OIDC    bool   `json:"oidc"`
-}
-
-type Body struct {
-	SwarmKey string `json:"swarmKey"`
-	Token    string `json:"token"`
-	Error    string `json:"error"`
-	Relay    string `json:"relay"`
-	VLAN     string `json:"vlan"`
 }
 
 var (
@@ -84,10 +77,23 @@ func register(_ *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	if state != define.Stopped {
-		return fmt.Errorf("vm %q is running", mc.Name)
+	if state != define.Running {
+		return fmt.Errorf("vm %q is not running", mc.Name)
 	}
 
+	username := registerOptions.Username
+	if username == "" {
+		username = mc.SSH.RemoteUsername
+	}
+	// try to get cluster ca public key
+	registerOptions.Args = []string{"sudo cat /var/lib/rancher/k3s/server/tls/server-ca.crt"}
+	output, err := machine.CommonSSHShellString(username, mc.SSH.IdentityPath, mc.Name, mc.SSH.Port, registerOptions.Args)
+	if err != nil {
+		fmt.Printf("Error capturing command output: %v\n", err)
+		return err
+	}
+	// base64 the output
+	publicKey := base64.StdEncoding.EncodeToString([]byte(output))
 
 	skipTLS := types.NewOptionalBool(true)
 	sysCtx := &types.SystemContext{
@@ -101,7 +107,7 @@ func register(_ *cobra.Command, args []string) error {
 	}
 
 	// API endpoint URL
-	url := "https://k3sphere.com/api/machine/register"
+	url := "https://k3sphere.com/api/cluster/register"
 
 	base64Data := fmt.Sprintf("%s:%s",dockerConfig.Username, dockerConfig.Password)
 	token := base64.StdEncoding.EncodeToString([]byte(base64Data))
@@ -110,8 +116,8 @@ func register(_ *cobra.Command, args []string) error {
 	data := Payload{
 		IP:      mc.IP,
 		Host:    mc.ID,
-		OIDC:    false,
-
+		OIDC:    mc.OIDC,
+		PublicKey: publicKey,
 	}
 
 	// Marshal the data to JSON
@@ -149,22 +155,13 @@ func register(_ *cobra.Command, args []string) error {
 
 	// Print the response
 	fmt.Println("Response Status:", resp.Status)
-	var result Body
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		fmt.Println("Error decoding response:", err)
-		os.Exit(1)
-	}
+
 	fmt.Println(resp)
-	if result.Error != "" {
-		fmt.Println("error happend ", result.Error)
+	if resp.StatusCode != 200 {
+		fmt.Println("error happend ", resp.Body)
 	} else {
-		mc.Lock()
-		defer mc.Unlock()
-		mc.Relay = result.Relay
-		mc.SwarmKey = result.SwarmKey
-		mc.VLAN = result.VLAN
-		mc.Write()
-		fmt.Println("successfully registered the machine")
+		
+		fmt.Println("successfully registered the cluster")
 	}
 	return nil
 }
