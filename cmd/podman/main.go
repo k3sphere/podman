@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"strings"
 
-	_ "github.com/containers/podman/v5/cmd/podman/app"
 	_ "github.com/containers/podman/v5/cmd/podman/completion"
 	_ "github.com/containers/podman/v5/cmd/podman/farm"
 	_ "github.com/containers/podman/v5/cmd/podman/generate"

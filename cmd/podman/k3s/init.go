@@ -43,6 +43,17 @@ func init() {
 		Command: initCmd,
 		Parent:  k3sCmd,
 	})
+	flags := initCmd.Flags()
+	clientIdFlagName := "client-id"
+	flags.StringVar(&initOpts.ClientId, clientIdFlagName, "", "oidc client id")
+	issuerFlagName := "issuer"
+	flags.StringVar(&initOpts.Issuer, issuerFlagName, "https://auth.k3sphere.com/realms/k3sphere", "oidc issuer")
+	userClaimFlagName := "user-claim"
+	flags.StringVar(&initOpts.UserClaim, userClaimFlagName, "email", "oidc user claim")
+	groupsClaimFlagName := "groups-claim"
+	flags.StringVar(&initOpts.GroupsClaim, groupsClaimFlagName, "groups", "oidc groups claim")
+	nameFlagName := "name"
+	flags.StringVar(&initOpts.Name, nameFlagName, "", "name of the k3s cluster")
 
 }
 
@@ -152,21 +163,36 @@ func ssh(cmd *cobra.Command, args []string) error {
 			ipAddresses = append(ipAddresses, ip.String())
 		}
 	}
-
+	if initOpts.ClientId != "" && initOpts.Name!="" {
+		ipAddresses = append(ipAddresses, fmt.Sprintf("%s.findi.io",initOpts.Name))
+	}
 	// Format the IP addresses for the --tls-san option
 	if len(ipAddresses) == 0 {
 		fmt.Println("No IP addresses found.")
 		os.Exit(1)
 	}
-	tlsSanArgs := "--tls-san " + strings.Join(ipAddresses, " --tls-san ")
+	tlsSanArgs := "--tls-san=" + strings.Join(ipAddresses, " --tls-san=")
+
+
+	if initOpts.ClientId != "" {
+		tlsSanArgs += fmt.Sprintf(" --kube-apiserver-arg=oidc-client-id=%s", initOpts.ClientId)
+	}
+	if initOpts.Issuer != "" {
+		tlsSanArgs += fmt.Sprintf(" --kube-apiserver-arg=oidc-issuer-url=%s", initOpts.Issuer)
+	}
+	if initOpts.UserClaim != "" {
+		tlsSanArgs += fmt.Sprintf(" --kube-apiserver-arg=oidc-username-claim=%s", initOpts.UserClaim)
+	}
+	if initOpts.GroupsClaim != "" {
+		tlsSanArgs += fmt.Sprintf(" --kube-apiserver-arg=oidc-groups-claim=%s", initOpts.GroupsClaim)
+	}
+
 
 	// Construct the INSTALL_K3S_EXEC environment variable
 	installCommand := fmt.Sprintf("curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC=\"%s\" sh -", tlsSanArgs)
-
 	// Output the installation command
 	fmt.Println("Run the following command to install K3s with all local IPs:")
 	fmt.Println(installCommand)
-
 	initOpts.Args = []string{installCommand}
 	err = machine.CommonSSHShell(username, mc.SSH.IdentityPath, mc.Name, mc.SSH.Port, initOpts.Args)
 	return utils.HandleOSExecError(err)

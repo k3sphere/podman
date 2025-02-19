@@ -9,4 +9,9 @@ const (
 type InitOptions struct {
 	Username string
 	Args     []string
+	ClientId string
+	Issuer   string
+	UserClaim string
+	GroupsClaim string
+	Name string
 }

@@ -100,10 +100,6 @@ func login(cmd *cobra.Command, args []string) error {
 	}
 	setRegistriesConfPath(sysCtx)
 	loginOptions.GetLoginSet = cmd.Flag("get-login").Changed
-
-	if len(args) == 0 {
-		args = []string{"k3sphere.com"}
-	}
 	return auth.Login(context.Background(), sysCtx, &loginOptions.LoginOptions, args)
 }
 

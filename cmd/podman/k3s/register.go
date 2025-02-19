@@ -1,6 +1,6 @@
 //go:build amd64 || arm64
 
-package machine
+package k3s
 
 import (
 	"bytes"
@@ -8,12 +8,11 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"runtime"
 
 	"github.com/containers/image/v5/pkg/docker/config"
 	"github.com/containers/image/v5/types"
 	"github.com/containers/podman/v5/cmd/podman/registry"
-	"github.com/containers/podman/v5/pkg/machine"
+	define2 "github.com/containers/podman/v5/pkg/k3s/define"
 	"github.com/containers/podman/v5/pkg/machine/define"
 	"github.com/containers/podman/v5/pkg/machine/env"
 	"github.com/containers/podman/v5/pkg/machine/vmconfigs"
@@ -21,16 +20,10 @@ import (
 )
 
 type Payload struct {
-	ID      string `json:"id"`
-	Name    string `json:"name"`
-	Username    string `json:"username"`
 	IP      string `json:"ip"`
-	Region  string `json:"region"`
-	VLAN    string `json:"vlan"`
-	Type    string `json:"type"`
-	Gateway string `json:"gateway"`
-	Port    int `json:"port"`
-	PublicIP      string `json:"publicIp"`
+	PublicKey  string `json:"publicKey"`
+	Host    string `json:"host"`
+	OIDC    bool   `json:"oidc"`
 }
 
 type Body struct {
@@ -55,30 +48,17 @@ var (
 )
 
 var (
-	registerOptions machine.RegisterOptions
+	registerOptions define2.RegisterOptions
 )
 
 func init() {
 	registry.Commands = append(registry.Commands, registry.CliCommand{
 		Command: registerCmd,
-		Parent:  machineCmd,
+		Parent:  k3sCmd,
 	})
 
-	flags := registerCmd.Flags()
-	nameFlagName := "name"
-	flags.StringVar(&registerOptions.Name, nameFlagName, "", "name appears in portal for registration")
 
-	regionFlagName := "region"
-	flags.StringVar(&registerOptions.Region, regionFlagName, "eu", "region of cdn push zone (eu,us,asia)")
 
-	typeFlagName := "type"
-	flags.StringVar(&registerOptions.Type, typeFlagName, "machine", "Type of machine")
-
-	gatewayFlagName := "gateway"
-	flags.StringVar(&registerOptions.Gateway, gatewayFlagName, "", "Used the machine is not exposed to internet")
-
-	ipFlagName := "ip"
-	flags.StringVar(&registerOptions.IP, ipFlagName, "", "accessible ip address when register the node as gateway")
 }
 
 func register(_ *cobra.Command, args []string) error {
@@ -108,9 +88,7 @@ func register(_ *cobra.Command, args []string) error {
 		return fmt.Errorf("vm %q is running", mc.Name)
 	}
 
-	if registerOptions.Name == "" {
-		registerOptions.Name, _ = os.Hostname()
-	}
+
 	skipTLS := types.NewOptionalBool(true)
 	sysCtx := &types.SystemContext{
 		DockerInsecureSkipTLSVerify: skipTLS,
@@ -127,22 +105,13 @@ func register(_ *cobra.Command, args []string) error {
 
 	base64Data := fmt.Sprintf("%s:%s",dockerConfig.Username, dockerConfig.Password)
 	token := base64.StdEncoding.EncodeToString([]byte(base64Data))
-	port := mc.SSH.Port
-	if (runtime.GOOS != "windows") {
-		port = 22
-	}
+
 	// Data to be sent in JSON format
 	data := Payload{
-		ID:      mc.ID,
-		Name:    registerOptions.Name,
-		Region:  registerOptions.Region,
 		IP:      mc.IP,
-		VLAN:    mc.VLAN,
-		Gateway: registerOptions.Gateway,
-		Type:    registerOptions.Type,
-		Port:    port,
-		Username: mc.SSH.RemoteUsername,
-		PublicIP: registerOptions.IP,
+		Host:    mc.ID,
+		OIDC:    false,
+
 	}
 
 	// Marshal the data to JSON

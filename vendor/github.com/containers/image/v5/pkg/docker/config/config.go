@@ -307,7 +307,7 @@ func getAuthenticationWithHomeDir(sys *types.SystemContext, key, homeDir string)
 // Returns a human-readable description of the location that was updated.
 // NOTE: The return value is only intended to be read by humans; its form is not an API,
 // it may change (or new forms can be added) any time.
-func SetCredentials(sys *types.SystemContext, key, username, password string, token string) (string, error) {
+func SetCredentials(sys *types.SystemContext, key, username, password string) (string, error) {
 	helpers, jsonEditor, key, isNamespaced, err := prepareForEdit(sys, key, true)
 	if err != nil {
 		return "", err
@@ -334,10 +334,6 @@ func SetCredentials(sys *types.SystemContext, key, username, password string, to
 				}
 				creds := base64.StdEncoding.EncodeToString([]byte(username + ":" + password))
 				newCreds := dockerAuthConfig{Auth: creds}
-				// Type assertion to retrieve the original struct
-				if token != "" {
-					newCreds = dockerAuthConfig{IdentityToken: token}
-				}
 				fileContents.AuthConfigs[key] = newCreds
 				return true, "", nil
 			})
@@ -367,7 +363,7 @@ func unsupportedNamespaceErr(helper string) error {
 // SetAuthentication stores the username and password in the credential helper or file
 // See the documentation of SetCredentials for format of "key"
 func SetAuthentication(sys *types.SystemContext, key, username, password string) error {
-	_, err := SetCredentials(sys, key, username, password, "")
+	_, err := SetCredentials(sys, key, username, password)
 	return err
 }
 
@@ -882,11 +878,6 @@ func authKeysForKey(key string) (res []string) {
 // decodeDockerAuth decodes the username and password from conf,
 // which is entry key in path.
 func decodeDockerAuth(path, key string, conf dockerAuthConfig) (types.DockerAuthConfig, error) {
-	if conf.IdentityToken != "" {
-		return types.DockerAuthConfig{
-			IdentityToken: conf.IdentityToken,
-		}, nil
-	}
 	decoded, err := base64.StdEncoding.DecodeString(conf.Auth)
 	if err != nil {
 		return types.DockerAuthConfig{}, err

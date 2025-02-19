@@ -27,7 +27,7 @@ var (
 		Short:             "generate kubernetes config",
 		Long:              "generate kubernetes config",
 		PersistentPreRunE: machinePreRunE,
-		RunE:              config,
+		RunE:              config1,
 		Example: `podman k3s config podman-machine-default
   podman k3s config`,
 		ValidArgsFunction: autocompleteMachineSSH,
@@ -49,7 +49,7 @@ func init() {
 
 // TODO Remember that this changed upstream and needs to updated as such!
 
-func config(cmd *cobra.Command, args []string) error {
+func config1(cmd *cobra.Command, args []string) error {
 	var (
 		err     error
 		mc      *vmconfigs.MachineConfig

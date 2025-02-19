@@ -300,50 +300,6 @@ func CheckAuth(ctx context.Context, sys *types.SystemContext, username, password
 	return nil
 }
 
-// CheckAuth validates the credentials by attempting to log into the registry
-// returns an error if an error occurred while making the http request or the status code received was 401
-func CheckAuthWithToken(ctx context.Context, sys *types.SystemContext, username, password, registry string) string {
-	client, err := newDockerClient(sys, registry, registry)
-	if err != nil {
-		fmt.Printf("creating new docker client: %s", err)
-		return ""
-	}
-	defer client.Close()
-	client.auth = types.DockerAuthConfig{
-		Username: username,
-		Password: password,
-	}
-
-	resp, err := client.makeRequest(ctx, http.MethodGet, "/v2/", nil, nil, v2Auth, nil)
-	if err != nil {
-		fmt.Printf("failed to perform request: %s", err)
-		return ""
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		err := registryHTTPResponseToError(resp)
-		if resp.StatusCode == http.StatusUnauthorized {
-			err = ErrUnauthorizedForCredentials{Err: err}
-		}
-		fmt.Printf("creating new docker client: %s", err)
-		return ""
-	}
-	if value, ok := client.tokenCache.Load(""); ok {
-		if t, ok := value.(bearerToken); ok {
-			oneDayLater := time.Now().Add(24 * time.Hour)
-			if t.expirationTime.After(oneDayLater) {
-				fmt.Println("got long live token", t.expirationTime)
-				return t.token
-			}
-		} else {
-			fmt.Println("JWT token type assertion failed")
-		}
-
-	}
-
-	return ""
-}
-
 // SearchResult holds the information of each matching image
 // It matches the output returned by the v1 endpoint
 type SearchResult struct {
