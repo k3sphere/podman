@@ -14,4 +14,5 @@ type InitOptions struct {
 	UserClaim string
 	GroupsClaim string
 	Name string
+	OIDC bool
 }

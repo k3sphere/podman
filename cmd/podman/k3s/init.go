@@ -3,12 +3,16 @@
 package k3s
 
 import (
+	"encoding/base64"
 	"fmt"
 	"net"
+	"net/http"
 	"net/url"
 	"os"
 	"strings"
 
+	"github.com/containers/image/v5/pkg/docker/config"
+	"github.com/containers/image/v5/types"
 	"github.com/containers/podman/v5/cmd/podman/registry"
 	"github.com/containers/podman/v5/cmd/podman/utils"
 	define "github.com/containers/podman/v5/pkg/k3s/define"
@@ -44,16 +48,18 @@ func init() {
 		Parent:  k3sCmd,
 	})
 	flags := initCmd.Flags()
-	clientIdFlagName := "client-id"
-	flags.StringVar(&initOpts.ClientId, clientIdFlagName, "", "oidc client id")
-	issuerFlagName := "issuer"
-	flags.StringVar(&initOpts.Issuer, issuerFlagName, "https://auth.k3sphere.com/realms/k3sphere", "oidc issuer")
-	userClaimFlagName := "user-claim"
-	flags.StringVar(&initOpts.UserClaim, userClaimFlagName, "email", "oidc user claim")
-	groupsClaimFlagName := "groups-claim"
-	flags.StringVar(&initOpts.GroupsClaim, groupsClaimFlagName, "groups", "oidc groups claim")
-	nameFlagName := "name"
-	flags.StringVar(&initOpts.Name, nameFlagName, "", "name of the k3s cluster")
+//	clientIdFlagName := "client-id"
+//	flags.StringVar(&initOpts.ClientId, clientIdFlagName, "", "oidc client id")
+//	issuerFlagName := "issuer"
+//	flags.StringVar(&initOpts.Issuer, issuerFlagName, "https://auth.k3sphere.com/realms/k3sphere", "oidc issuer")
+//	userClaimFlagName := "user-claim"
+//	flags.StringVar(&initOpts.UserClaim, userClaimFlagName, "email", "oidc user claim")
+//	groupsClaimFlagName := "groups-claim"
+//	flags.StringVar(&initOpts.GroupsClaim, groupsClaimFlagName, "groups", "oidc groups claim")
+//	nameFlagName := "name"
+//	flags.StringVar(&initOpts.Name, nameFlagName, "", "name of the k3s cluster")
+	oidcFlagName := "oidc"
+	flags.BoolVar(&initOpts.OIDC, oidcFlagName, true, "name of the k3s cluster")
 
 }
 
@@ -121,6 +127,78 @@ func ssh(cmd *cobra.Command, args []string) error {
 		username = mc.SSH.RemoteUsername
 	}
 
+	var token string
+	if initOpts.OIDC {
+		// get cluster information from cloud
+		skipTLS := types.NewOptionalBool(true)
+		sysCtx := &types.SystemContext{
+			DockerInsecureSkipTLSVerify: skipTLS,
+		}
+		setRegistriesConfPath(sysCtx)
+
+		dockerConfig, err := config.GetCredentials(sysCtx, "k3sphere.com")
+		if err != nil {
+			initOpts.OIDC = false
+		}
+		base64Data := fmt.Sprintf("%s:%s",dockerConfig.Username, dockerConfig.Password)
+		token = base64.StdEncoding.EncodeToString([]byte(base64Data))
+		initOpts.ClientId = dockerConfig.Username
+	}
+
+	if initOpts.OIDC {
+		// API endpoint URL
+		url := "https://k3sphere.com/api/cluster/" + initOpts.ClientId
+
+		// Create a new HTTP POST request
+		req, err := http.NewRequest("GET", url, nil)
+		if err != nil {
+			fmt.Println("Error creating request:", err)
+			os.Exit(1)
+		}
+		// Set headers
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Basic "+token)
+		// Dump the request before sending
+	//	requestDump, err := httputil.DumpRequestOut(req, true)
+	//	if err != nil {
+	//		fmt.Println("Error dumping request:", err)
+	//	} else {
+	//		fmt.Println("HTTP Request:\n", string(requestDump))
+	//	}
+		// Send the request
+		client := &http.Client{}
+		resp, err := client.Do(req)
+		if err != nil {
+			fmt.Println("Error sending request:", err)
+			os.Exit(1)
+		}
+		defer resp.Body.Close()
+
+		// Print the response
+		fmt.Println("Response Status:", resp.Status)
+
+		if resp.StatusCode != 200 {
+			fmt.Println("failed to get cluster information, please try later")
+			return nil
+		} else {
+			fmt.Println("successfully registered the cluster")
+			// extract name of the cluster from the http response json data
+			var responseData struct {
+				Name string `json:"name"`
+			}
+			if err := json.NewDecoder(resp.Body).Decode(&responseData); err != nil {
+				fmt.Println("Error decoding response:", err)
+				return nil
+			}
+			fmt.Println("Cluster Name:", responseData.Name)
+			initOpts.Name = responseData.Name
+		}
+	}
+
+
+
+
+
 	// Get a list of all network interfaces
 	interfaces, err := net.Interfaces()
 	if err != nil {
@@ -163,36 +241,30 @@ func ssh(cmd *cobra.Command, args []string) error {
 			ipAddresses = append(ipAddresses, ip.String())
 		}
 	}
-	if initOpts.ClientId != "" && initOpts.Name!="" {
-		ipAddresses = append(ipAddresses, fmt.Sprintf("%s.findi.io",initOpts.Name))
+
+	oidcArgs := ""
+	if initOpts.OIDC {
+		ipAddresses = append(ipAddresses, fmt.Sprintf("%s.k3sphere.io",initOpts.Name))
+
+		oidcArgs += fmt.Sprintf(" --node-label cluster-id=%s --kube-apiserver-arg=oidc-client-id=%s", initOpts.ClientId, initOpts.ClientId)
+		mc.Lock()
+		defer mc.Unlock()
+		mc.OIDC = true
+		mc.Write()
+		oidcArgs += fmt.Sprintf(" --kube-apiserver-arg=oidc-issuer-url=%s", "https://auth.k3sphere.com/realms/k3sphere")
+		oidcArgs += fmt.Sprintf(" --kube-apiserver-arg=oidc-username-claim=%s", "email")
+		oidcArgs += fmt.Sprintf(" --kube-apiserver-arg=oidc-groups-claim=%s", "groups")
+
 	}
+
 	// Format the IP addresses for the --tls-san option
 	if len(ipAddresses) == 0 {
 		fmt.Println("No IP addresses found.")
 		os.Exit(1)
 	}
-	tlsSanArgs := "--tls-san=" + strings.Join(ipAddresses, " --tls-san=")
-
-
-	if initOpts.ClientId != "" {
-		tlsSanArgs += fmt.Sprintf(" --kube-apiserver-arg=oidc-client-id=%s", initOpts.ClientId)
-		mc.Lock()
-		defer mc.Unlock()
-		mc.OIDC = true
-
-		mc.Write()
-	}
-	if initOpts.Issuer != "" {
-		tlsSanArgs += fmt.Sprintf(" --kube-apiserver-arg=oidc-issuer-url=%s", initOpts.Issuer)
-	}
-	if initOpts.UserClaim != "" {
-		tlsSanArgs += fmt.Sprintf(" --kube-apiserver-arg=oidc-username-claim=%s", initOpts.UserClaim)
-	}
-	if initOpts.GroupsClaim != "" {
-		tlsSanArgs += fmt.Sprintf(" --kube-apiserver-arg=oidc-groups-claim=%s", initOpts.GroupsClaim)
-	}
-
-
+	tlsSanArgs := " --tls-san=" + strings.Join(ipAddresses, " --tls-san=")  + oidcArgs
+	
+	
 	// Construct the INSTALL_K3S_EXEC environment variable
 	installCommand := fmt.Sprintf("curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC=\"%s\" sh -", tlsSanArgs)
 	// Output the installation command
