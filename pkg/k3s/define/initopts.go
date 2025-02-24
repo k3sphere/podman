@@ -8,6 +8,7 @@ const (
 
 type InitOptions struct {
 	Username string
+	Email  string
 	Args     []string
 	ClientId string
 	Issuer   string

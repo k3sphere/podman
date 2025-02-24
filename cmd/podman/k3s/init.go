@@ -23,6 +23,28 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const traefik = `
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: traefik
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    persistence:
+      enabled: true
+      name: data
+      accessMode: ReadWriteOnce
+      size: 128Mi
+      path: /data
+    certResolvers: 
+      letsencrypt:
+        email: %s
+        storage: /data/acme.json
+        httpChallenge: 
+          entryPoint: web
+`
+
 var (
 	initCmd = &cobra.Command{
 		Use:               "init [options] [NAME] [COMMAND [ARG ...]]",
@@ -56,8 +78,8 @@ func init() {
 //	flags.StringVar(&initOpts.UserClaim, userClaimFlagName, "email", "oidc user claim")
 //	groupsClaimFlagName := "groups-claim"
 //	flags.StringVar(&initOpts.GroupsClaim, groupsClaimFlagName, "groups", "oidc groups claim")
-//	nameFlagName := "name"
-//	flags.StringVar(&initOpts.Name, nameFlagName, "", "name of the k3s cluster")
+	emailFlagName := "acme-email"
+	flags.StringVar(&initOpts.Email, emailFlagName, "", "let's encrypt notification email")
 	oidcFlagName := "oidc"
 	flags.BoolVar(&initOpts.OIDC, oidcFlagName, true, "name of the k3s cluster")
 
@@ -244,9 +266,9 @@ func ssh(cmd *cobra.Command, args []string) error {
 
 	oidcArgs := ""
 	if initOpts.OIDC {
-		ipAddresses = append(ipAddresses, fmt.Sprintf("%s.k3sphere.io",initOpts.Name))
+		ipAddresses = append(ipAddresses, fmt.Sprintf("api.%s.k3sphere.io",initOpts.Name))
 
-		oidcArgs += fmt.Sprintf(" --node-label cluster-id=%s --kube-apiserver-arg=oidc-client-id=%s", initOpts.ClientId, initOpts.ClientId)
+		oidcArgs += fmt.Sprintf(" --node-label=cluster-id=%s --kube-apiserver-arg=oidc-client-id=%s", initOpts.ClientId, initOpts.ClientId)
 		mc.Lock()
 		defer mc.Unlock()
 		mc.OIDC = true
@@ -263,15 +285,25 @@ func ssh(cmd *cobra.Command, args []string) error {
 		os.Exit(1)
 	}
 	tlsSanArgs := " --tls-san=" + strings.Join(ipAddresses, " --tls-san=")  + oidcArgs
+	if initOpts.Email != "" {
+		traefikConfig := base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf(traefik, initOpts.Email)))
+		traefikConfigCmd := fmt.Sprintf("sudo mkdir -p /var/lib/rancher/k3s/server/manifests/ && echo %s | base64 -d | sudo tee /var/lib/rancher/k3s/server/manifests/traefik-config.yaml > /dev/null", traefikConfig)
+		installCommand := fmt.Sprintf("%s && curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC=\"%s\" sh -", traefikConfigCmd, tlsSanArgs)
+		// Output the installation command
+		fmt.Println("Run the following command to install K3s with all local IPs:")
+		fmt.Println(installCommand)
+		initOpts.Args = []string{installCommand}
+		err = machine.CommonSSHShell(username, mc.SSH.IdentityPath, mc.Name, mc.SSH.Port, initOpts.Args)
+	}else {
+		// Construct the INSTALL_K3S_EXEC environment variable
+		installCommand := fmt.Sprintf("curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC=\"%s\" sh -", tlsSanArgs)
+		// Output the installation command
+		fmt.Println("Run the following command to install K3s with all local IPs:")
+		fmt.Println(installCommand)
+		initOpts.Args = []string{installCommand}
+		err = machine.CommonSSHShell(username, mc.SSH.IdentityPath, mc.Name, mc.SSH.Port, initOpts.Args)
+	}
 	
-	
-	// Construct the INSTALL_K3S_EXEC environment variable
-	installCommand := fmt.Sprintf("curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC=\"%s\" sh -", tlsSanArgs)
-	// Output the installation command
-	fmt.Println("Run the following command to install K3s with all local IPs:")
-	fmt.Println(installCommand)
-	initOpts.Args = []string{installCommand}
-	err = machine.CommonSSHShell(username, mc.SSH.IdentityPath, mc.Name, mc.SSH.Port, initOpts.Args)
 	return utils.HandleOSExecError(err)
 }
 

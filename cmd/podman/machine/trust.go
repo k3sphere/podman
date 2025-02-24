@@ -3,11 +3,11 @@
 package machine
 
 import (
-	"bytes"
+	"encoding/base64"
 	"fmt"
 	"net/http"
+	"net/http/httputil"
 	"os"
-	"strings"
 
 	"github.com/containers/image/v5/pkg/docker/config"
 	"github.com/containers/image/v5/types"
@@ -28,10 +28,7 @@ type TrustPayload struct {
 }
 
 type TrustBody struct {
-	Machine string `json:"machine"`
-	Account    string `json:"account"`
-	Root      bool `json:"root"`
-	Keys    []Key `json:"keys"`
+	Keys    []string `json:"keys"`
 }
 
 type Key struct {
@@ -158,26 +155,13 @@ func trust(cmd *cobra.Command, args []string) error {
 	}
 
 	// API endpoint URL
-	url := "https://www.k3sphere.com/api/machine/trust"
+	url := "https://k3sphere.com/api/machine/trust"
 
-	// JWT Token
-	token := dockerConfig.IdentityToken
-
-	// Data to be sent in JSON format
-	data := TrustPayload{
-		Machine:      mc.ID,
-		Account: trustOpts.Account,
-	}
-
-	// Marshal the data to JSON
-	jsonData, err := json.Marshal(data)
-	if err != nil {
-		fmt.Println("Error marshaling JSON:", err)
-		os.Exit(1)
-	}
+	base64Data := fmt.Sprintf("%s:%s",dockerConfig.Username, dockerConfig.Password)
+	token := base64.StdEncoding.EncodeToString([]byte(base64Data))
 
 	// Create a new HTTP POST request
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		fmt.Println("Error creating request:", err)
 		os.Exit(1)
@@ -185,8 +169,14 @@ func trust(cmd *cobra.Command, args []string) error {
 
 	// Set headers
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Authorization", "Basic "+token)
 
+	requestDump, err := httputil.DumpRequestOut(req, true)
+	if err != nil {
+		fmt.Println("Error dumping request:", err)
+	} else {
+		fmt.Println("HTTP Request:\n", string(requestDump))
+	}
 	// Send the request
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -206,7 +196,7 @@ func trust(cmd *cobra.Command, args []string) error {
 	fmt.Println(resp)
 
 	if len(result.Keys) > 0 {
-		trustOpts.Args = []string {generateUserSetupCommand(result.Account, result.Keys, result.Root)}
+		trustOpts.Args = []string {generateUserSetupCommand(mc.SSH.RemoteUsername, result.Keys)}
 		err = machine.CommonSSHShell(username, mc.SSH.IdentityPath, mc.Name, mc.SSH.Port, trustOpts.Args)
 		return utils.HandleOSExecError(err)
 	}else {
@@ -215,34 +205,16 @@ func trust(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func generateUserSetupCommand(username string, keys []Key, root bool) string {
+func generateUserSetupCommand(username string, keys []string) string {
 	
-	joinedKeys := generateSingleLineScript(keys)
-
-	var cmd string;
-	if root {
-		cmd = fmt.Sprintf(`USER="%s" && id "$USER" &>/dev/null || sudo useradd -m -s /bin/bash "$USER" && sudo mkdir -p "/home/$USER/.ssh" && sudo mkdir -p "/home/$USER/.ssh/authorized_keys.d" && sudo chmod -R 700 "/home/$USER/.ssh" && %s && ( echo "$USER ALL=(ALL) NOPASSWD:ALL" | sudo tee -a "/etc/sudoers.d/$USER" > /dev/null) && sudo chown -R "$USER:$USER" "/home/$USER/.ssh/" && (sudo grep -q '^PubkeyAcceptedAlgorithms' /etc/ssh/sshd_config || sudo sed -i '1s/^/PubkeyAcceptedAlgorithms +webauthn-sk-ecdsa-sha2-nistp256@openssh.com\n/' /etc/ssh/sshd_config && sudo systemctl restart sshd)`, username, joinedKeys)
-	}else {
-		cmd = fmt.Sprintf(`USER="%s" && id "$USER" &>/dev/null || sudo useradd -m -s /bin/bash "$USER" && sudo mkdir -p "/home/$USER/.ssh" && sudo mkdir -p "/home/$USER/.ssh/authorized_keys.d" && sudo chmod -R 700 "/home/$USER/.ssh" && %s && sudo chown -R "$USER:$USER" "/home/$USER/.ssh/" && sudo rm -fr "/etc/sudoers.d/$USER"  && (sudo grep -q '^PubkeyAcceptedAlgorithms' /etc/ssh/sshd_config || sudo sed -i '1s/^/PubkeyAcceptedAlgorithms +webauthn-sk-ecdsa-sha2-nistp256@openssh.com\n/' /etc/ssh/sshd_config) && sudo systemctl restart sshd`, username, joinedKeys)
-
+	joinedKeys := ""
+	for _, key := range keys {
+		joinedKeys += key
 	}
-	
+
+	cmd := fmt.Sprintf(`(echo "%s" | sudo tee "/home/%s/.ssh/authorized_keys" >/dev/null ) && (sudo grep -q '^PubkeyAcceptedAlgorithms' /etc/ssh/sshd_config || sudo sed -i '1s/^/PubkeyAcceptedAlgorithms +webauthn-sk-ecdsa-sha2-nistp256@openssh.com\n/' /etc/ssh/sshd_config && sudo systemctl restart sshd)`, joinedKeys, username)
+
 	fmt.Println(cmd)
 	return cmd
 }
 
-func generateSingleLineScript(keys []Key) string {
-	var sb strings.Builder
-
-	for i, key := range keys {
-		filePath := fmt.Sprintf("/home/$USER/.ssh/authorized_keys.d/%s", key.Name)
-		sb.WriteString(fmt.Sprintf("echo \"%s\" | sudo tee \"%s\" >/dev/null && sudo chmod 600 \"%s\"", key.PublicKey, filePath,filePath))
-
-		// Append '&&' if not the last key
-		if i < len(keys)-1 {
-			sb.WriteString(" && ")
-		}
-	}
-
-	return sb.String()
-}
