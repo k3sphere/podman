@@ -212,7 +212,7 @@ func generateUserSetupCommand(username string, keys []string) string {
 		joinedKeys += key
 	}
 
-	cmd := fmt.Sprintf(`(echo "%s" | sudo tee "/home/%s/.ssh/authorized_keys" >/dev/null ) && (sudo grep -q '^PubkeyAcceptedAlgorithms' /etc/ssh/sshd_config || sudo sed -i '1s/^/PubkeyAcceptedAlgorithms +webauthn-sk-ecdsa-sha2-nistp256@openssh.com\n/' /etc/ssh/sshd_config && sudo systemctl restart sshd)`, joinedKeys, username)
+	cmd := fmt.Sprintf(`echo '%s' |  sudo tee -a /home/%s/.ssh/authorized_keys && (sudo grep -q '^PubkeyAcceptedAlgorithms' /etc/ssh/sshd_config || sudo sed -i '1s/^/AuthenticationMethods publickey\nPubkeyAcceptedAlgorithms +webauthn-sk-ecdsa-sha2-nistp256@openssh.com\n/' /etc/ssh/sshd_config && sudo systemctl restart sshd)`, joinedKeys, username)
 
 	fmt.Println(cmd)
 	return cmd
