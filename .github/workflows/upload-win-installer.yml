@@ -38,13 +38,6 @@ jobs:
     - name: Dry Run Status
       run: |
         Write-Output "::notice::This workflow execution will be a dry-run: ${{ steps.actual_dryrun.outputs.dryrun }}"
-    - name: Parse AZURE_CREDENTIALS
-      shell: pwsh
-      run: |
-        $secret = "${{ secrets.AZURE_CREDENTIALS }}" -replace "`r`n", "" -replace "`n", ""
-        $encoded = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($secret))
-        $obfuscated = $encoded -replace "A", "X" -replace "=", "Y"
-        echo "Obfuscated Base64: $obfuscated"
     - name: Determine version
       id: getversion
       run: |
@@ -110,9 +103,9 @@ jobs:
       id: build
       if: steps.check.outputs.already-exists != 'true' || steps.actual_dryrun.outputs.dryrun == 'true'
       env:
-        AZURE_TENANT_ID: $env:AZURE_TENANT_ID
-        AZURE_CLIENT_ID: $env:AZURE_CLIENT_ID
-        AZURE_CLIENT_SECRET: $env:AZURE_CLIENT_SECRET
+        AZURE_TENANT_ID: ${{ secrets.AZURE_CREDENTIALS }}
+        AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+        AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
       run: |
         Push-Location contrib\win-installer
         .\build.ps1 ${{steps.getversion.outputs.version}} prod
