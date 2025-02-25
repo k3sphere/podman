@@ -41,10 +41,8 @@ jobs:
     - name: Parse AZURE_CREDENTIALS
       shell: pwsh
       run: |
-        Write-Output ${{ secrets.AZURE_CREDENTIALS }}
         $credentials = ${{ secrets.AZURE_CREDENTIALS }} | ConvertFrom-Json
-        [Environment]::SetEnvironmentVariable("AZURE_TENANT_ID", $credentials.tenantId, "User")
-        [Environment]::SetEnvironmentVariable("AZURE_CLIENT_ID", $credentials.clientId, "User")
+        Write-Output $credentials | ConvertTo-Json -Depth 10
     - name: Determine version
       id: getversion
       run: |
