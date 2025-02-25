@@ -865,7 +865,7 @@ podman-remote-release-%.zip: test/version/version ## Build podman-remote for %=$
 .PHONY: win-gvproxy
 win-gvproxy: test/version/version
 	mkdir -p bin/windows/
-	curl -sSL -o bin/windows/gvproxy.exe --retry 5 https://github.com/containers/gvisor-tap-vsock/releases/download/$(GV_VERSION)/gvproxy-windowsgui.exe
+	cp gvisor-tap-vsock/gvproxy.exe bin/windows/gvproxy.exe
 	curl -sSL -o bin/windows/win-sshproxy.exe --retry 5 https://github.com/containers/gvisor-tap-vsock/releases/download/$(GV_VERSION)/win-sshproxy.exe
 
 .PHONY: rpm
