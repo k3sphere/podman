@@ -1,3 +1,4 @@
+Import-Module TrustedSigning
 function ExitOnError() {
     if ($LASTEXITCODE -ne 0) {
         Exit 1
@@ -9,13 +10,6 @@ function SignItem() {
         [Parameter(Mandatory)]
         [string[]]$fileNames
     )
-
-    foreach ($val in $ENV:APP_ID, $ENV:TENANT_ID, $ENV:CLIENT_SECRET, $ENV:CERT_NAME) {
-        if (!$val) {
-            Write-Host "Skipping signing (no config)"
-            Return
-        }
-    }
 
     $absolutePaths = $fileNames | ForEach-Object { (Resolve-Path $_).Path }
     $fileString = $absolutePaths -join ","
@@ -43,28 +37,12 @@ function CheckRequirements() {
     CheckCommand "go" "Golang"
 }
 
-function Build-531-Patch() {
-    param(
-        [ValidateScript({Test-Path $_ -PathType Leaf})]
-        [string]$v531SetupExePath=$ENV:V531_SETUP_EXE_PATH
-    )
-
-    if (!$v531SetupExePath) {
-      . $PSScriptRoot\utils.ps1
-      $v531SetupExePath=Get-Podman-Setup-From-GitHub "tags/v5.3.1"
-    }
-    wix burn extract $v531SetupExePath -o $PSScriptRoot\prevPodmanMsi; ExitOnError
-    Move-Item $PSScriptRoot\prevPodmanMsi\a1 $PSScriptRoot\en-US\prev-podman.wixpdb -Force; ExitOnError
-    Move-Item $PSScriptRoot\prevPodmanMsi\a0 $PSScriptRoot\en-US\prev-podman.msi -Force; ExitOnError
-    wix build -define "Version=$ENV:INSTVER" -bindpath $PSScriptRoot\en-US -out $PSScriptRoot\en-US\podman.msp podman-patch.wxs; ExitOnError
-}
 
 if ($args.Count -lt 1 -or $args[0].Length -lt 1) {
     Write-Host "Usage: " $MyInvocation.MyCommand.Name "<version> [dev|prod] [release_dir]"
     Write-Host
     Write-Host 'Uses Env Vars: '
     Write-Host '   $ENV:FETCH_BASE_URL - GitHub Repo Address to locate release on'
-    Write-Host '   $ENV:V531_SETUP_EXE_PATH - Path to v5.3.1 setup.exe used to build the patch'
     Write-Host 'Env Settings for signing (optional)'
     Write-Host '   $ENV:VAULT_ID'
     Write-Host '   $ENV:APP_ID'
@@ -138,10 +116,6 @@ if (Test-Path ./obj) {
 }
 dotnet build podman.wixproj /property:DefineConstants="VERSION=$ENV:INSTVER" -o .; ExitOnError
 SignItem @("en-US\podman.msi")
-
-# Build the Patch for 5.3.1
-Build-531-Patch
-SignItem @("en-US\podman.msp")
 
 dotnet build podman-setup.wixproj /property:DefineConstants="VERSION=$ENV:INSTVER" -o .; ExitOnError
 wix burn detach podman-setup.exe -engine engine.exe; ExitOnError

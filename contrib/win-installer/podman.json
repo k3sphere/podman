@@ -1,0 +1,6 @@
+{
+    "Endpoint": "https://eus.codesigning.azure.net",
+    "CodeSigningAccountName": "k3sphere",
+    "CertificateProfileName": "k3sphere",
+    "CorrelationId": "podman"
+  }
