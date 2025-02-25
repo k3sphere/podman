@@ -103,9 +103,9 @@ jobs:
       shell: pwsh
       run: |
         $credentials = ${{ secrets.AZURE_CREDENTIALS }} | ConvertFrom-Json
+        Write-Output $credentials | ConvertTo-Json -Depth 10
         [Environment]::SetEnvironmentVariable("AZURE_TENANT_ID", $credentials.tenantId, "User")
         [Environment]::SetEnvironmentVariable("AZURE_CLIENT_ID", $credentials.clientId, "User")
-        [Environment]::SetEnvironmentVariable("AZURE_CLIENT_SECRET", $credentials.clientSecret, "User")
     - name: Build
       id: build
       if: steps.check.outputs.already-exists != 'true' || steps.actual_dryrun.outputs.dryrun == 'true'
