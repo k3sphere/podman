@@ -94,19 +94,25 @@ jobs:
     - name: Setup Signature Tooling
       if: steps.Check.outputs.already-exists != 'true' || steps.actual_dryrun.outputs.dryrun == 'true'
       run: |
-        dotnet tool install --global AzureSignTool --version 3.0.0
-        echo "CERT_NAME=${{secrets.AZ_CERT_NAME}}" | Out-File -FilePath $env:GITHUB_ENV -Append
-        echo "VAULT_ID=${{secrets.AZ_VAULT_ID}}" | Out-File -FilePath $env:GITHUB_ENV -Append
-        echo "APP_ID=${{secrets.AZ_APP_ID}}" | Out-File -FilePath $env:GITHUB_ENV -Append
-        echo "TENANT_ID=${{secrets.AZ_TENANT_ID}}" | Out-File -FilePath $env:GITHUB_ENV -Append
-        echo "CLIENT_SECRET=${{secrets.AZ_CLIENT_SECRET}}" | Out-File -FilePath $env:GITHUB_ENV -Append
+        Install-Module -Name TrustedSigning -Force -AllowClobber -Scope CurrentUser
     - name: Pandoc Setup
       uses: r-lib/actions/setup-pandoc@v2
       with:
         pandoc-version: '3.1.11'
+    - name: Parse AZURE_CREDENTIALS
+      shell: pwsh
+      run: |
+        $credentials = ${{ secrets.AZURE_CREDENTIALS }} | ConvertFrom-Json
+        [Environment]::SetEnvironmentVariable("AZURE_TENANT_ID", $credentials.tenantId, "User")
+        [Environment]::SetEnvironmentVariable("AZURE_CLIENT_ID", $credentials.clientId, "User")
+        [Environment]::SetEnvironmentVariable("AZURE_CLIENT_SECRET", $credentials.clientSecret, "User")
     - name: Build
       id: build
       if: steps.check.outputs.already-exists != 'true' || steps.actual_dryrun.outputs.dryrun == 'true'
+      env:
+        AZURE_TENANT_ID: $env:AZURE_TENANT_ID
+        AZURE_CLIENT_ID: $env:AZURE_CLIENT_ID
+        AZURE_CLIENT_SECRET: $env:AZURE_CLIENT_SECRET
       run: |
         Push-Location contrib\win-installer
         .\build.ps1 ${{steps.getversion.outputs.version}} prod

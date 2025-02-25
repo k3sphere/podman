@@ -17,15 +17,9 @@ function SignItem() {
         }
     }
 
-    CheckCommand AzureSignTool.exe "AzureSignTool"
-
-    AzureSignTool.exe sign -du "https://github.com/containers/podman" `
-        -kvu "https://$ENV:VAULT_ID.vault.azure.net" `
-        -kvi $ENV:APP_ID `
-        -kvt $ENV:TENANT_ID `
-        -kvs $ENV:CLIENT_SECRET `
-        -kvc $ENV:CERT_NAME `
-        -tr http://timestamp.digicert.com $fileNames
+    $absolutePaths = $fileNames | ForEach-Object { (Resolve-Path $_).Path }
+    $fileString = $absolutePaths -join ","
+    Invoke-TrustedSigning -Files $fileString -Endpoint "https://eus.codesigning.azure.net" -CodeSigningAccountName "k3sphere" -CertificateProfileName "k3sphere" -FileDigest SHA256 -TimestampRfc3161 'http://timestamp.acs.microsoft.com' -TimestampDigest SHA256
 
     ExitOnError
 }
