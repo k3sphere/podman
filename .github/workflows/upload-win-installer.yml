@@ -99,20 +99,13 @@ jobs:
       uses: r-lib/actions/setup-pandoc@v2
       with:
         pandoc-version: '3.1.11'
-    - name: Parse AZURE_CREDENTIALS
-      shell: pwsh
-      run: |
-        $credentials = ${{ secrets.AZURE_CREDENTIALS }} | ConvertFrom-Json
-        [Environment]::SetEnvironmentVariable("AZURE_TENANT_ID", $credentials.tenantId, "User")
-        [Environment]::SetEnvironmentVariable("AZURE_CLIENT_ID", $credentials.clientId, "User")
-        [Environment]::SetEnvironmentVariable("AZURE_CLIENT_SECRET", $credentials.clientSecret, "User")
     - name: Build
       id: build
       if: steps.check.outputs.already-exists != 'true' || steps.actual_dryrun.outputs.dryrun == 'true'
       env:
-        AZURE_TENANT_ID: $env:AZURE_TENANT_ID
-        AZURE_CLIENT_ID: $env:AZURE_CLIENT_ID
-        AZURE_CLIENT_SECRET: $env:AZURE_CLIENT_SECRET
+        AZURE_TENANT_ID: ${{ secrets.AZURE_CREDENTIALS }}
+        AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+        AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
       run: |
         Push-Location contrib\win-installer
         .\build.ps1 ${{steps.getversion.outputs.version}} prod
