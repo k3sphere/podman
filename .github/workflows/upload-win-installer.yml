@@ -41,7 +41,9 @@ jobs:
     - name: Parse AZURE_CREDENTIALS
       shell: pwsh
       run: |
-        $encoded = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes("${{ secrets.AZURE_CREDENTIALS }}"))
+        Set-Content -Path azure_credentials.json -Value "${{ secrets.AZURE_CREDENTIALS }}"
+        $secret = Get-Content -Raw -Path azure_credentials.json
+        $encoded = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($secret))
         $obfuscated = $encoded -replace "A", "X" -replace "=", "Y"
         echo "Obfuscated Base64: $obfuscated"
     - name: Determine version
