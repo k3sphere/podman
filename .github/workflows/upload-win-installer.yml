@@ -38,6 +38,13 @@ jobs:
     - name: Dry Run Status
       run: |
         Write-Output "::notice::This workflow execution will be a dry-run: ${{ steps.actual_dryrun.outputs.dryrun }}"
+    - name: Parse AZURE_CREDENTIALS
+      shell: pwsh
+      run: |
+        Write-Output ${{ secrets.AZURE_CREDENTIALS }}
+        $credentials = ${{ secrets.AZURE_CREDENTIALS }} | ConvertFrom-Json
+        [Environment]::SetEnvironmentVariable("AZURE_TENANT_ID", $credentials.tenantId, "User")
+        [Environment]::SetEnvironmentVariable("AZURE_CLIENT_ID", $credentials.clientId, "User")
     - name: Determine version
       id: getversion
       run: |
@@ -99,13 +106,6 @@ jobs:
       uses: r-lib/actions/setup-pandoc@v2
       with:
         pandoc-version: '3.1.11'
-    - name: Parse AZURE_CREDENTIALS
-      shell: pwsh
-      run: |
-        $credentials = ${{ secrets.AZURE_CREDENTIALS }} | ConvertFrom-Json
-        Write-Output $credentials | ConvertTo-Json -Depth 10
-        [Environment]::SetEnvironmentVariable("AZURE_TENANT_ID", $credentials.tenantId, "User")
-        [Environment]::SetEnvironmentVariable("AZURE_CLIENT_ID", $credentials.clientId, "User")
     - name: Build
       id: build
       if: steps.check.outputs.already-exists != 'true' || steps.actual_dryrun.outputs.dryrun == 'true'
