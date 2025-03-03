@@ -3,21 +3,21 @@
 package k3s
 
 import (
+	"encoding/base64"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 
+	"github.com/containers/image/v5/pkg/docker/config"
+	"github.com/containers/image/v5/types"
 	define "github.com/containers/podman/v5/pkg/k3s/define"
-	define2 "github.com/containers/podman/v5/pkg/machine/define"
-	"github.com/containers/podman/v5/pkg/machine/env"
 
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
 
 	"github.com/containers/podman/v5/cmd/podman/registry"
 	"github.com/containers/podman/v5/cmd/podman/utils"
-	"github.com/containers/podman/v5/pkg/machine"
-	"github.com/containers/podman/v5/pkg/machine/vmconfigs"
 	"github.com/spf13/cobra"
 )
 
@@ -35,7 +35,7 @@ var (
 )
 
 var (
-	configOpts define.InitOptions
+	configOpts define.ConfigOptions
 )
 
 func init() {
@@ -44,82 +44,123 @@ func init() {
 		Command: configCmd,
 		Parent:  k3sCmd,
 	})
-
+	flags := configCmd.Flags()
+	clientIdFlagName := "client-id"
+	flags.StringVar(&configOpts.ClientId, clientIdFlagName, "", "oidc client id")
+	clientSecretFlagName := "client-secret"
+	flags.StringVar(&configOpts.ClientSecret, clientSecretFlagName, "", "oidc client secret")
+	commandFlagName := "command"
+	flags.StringVar(&configOpts.Command, commandFlagName, "kubectl-oidc_login", "kubelogin command")
 }
 
 // TODO Remember that this changed upstream and needs to updated as such!
 
 func config1(cmd *cobra.Command, args []string) error {
-	var (
-		err     error
-		mc      *vmconfigs.MachineConfig
-		validVM bool
-	)
 
-	dirs, err := env.GetMachineDirs(provider.VMType())
-	if err != nil {
-		return err
-	}
+	if configOpts.ClientId == "" {
+		skipTLS := types.NewOptionalBool(true)
+		sysCtx := &types.SystemContext{
+			DockerInsecureSkipTLSVerify: skipTLS,
+		}
+		setRegistriesConfPath(sysCtx)
 
-	// Set the VM to default
-	vmName := defaultMachineName
-	// If len is greater than 0, it means we may have been
-	// provided the VM name.  If so, we check.  The VM name,
-	// if provided, must be in args[0].
-	if len(args) > 0 {
-		// note: previous incantations of this up by a specific name
-		// and errors were ignored.  this error is not ignored because
-		// it implies podman cannot read its machine files, which is bad
-		machines, err := vmconfigs.LoadMachinesInDir(dirs)
+		dockerConfig, err := config.GetCredentials(sysCtx, "k3sphere.com")
 		if err != nil {
 			return err
 		}
+		configOpts.ClientId = dockerConfig.Username
+		configOpts.ClientSecret = dockerConfig.Password
 
-		mc, validVM = machines[args[0]]
-		if validVM {
-			vmName = args[0]
-		} else {
-			//initOpts.Args = append(initOpts.Args, args[0])
-		}
 	}
+	// API endpoint URL
+	url := "https://k3sphere.com/api/cluster/" + configOpts.ClientId
 
-	// If the machine config was not loaded earlier, we load it now
-	if mc == nil {
-		mc, err = vmconfigs.LoadMachineByName(vmName, dirs)
-		if err != nil {
-			return fmt.Errorf("vm %s not found: %w", vmName, err)
-		}
-	}
+	base64Data := fmt.Sprintf("%s:%s",configOpts.ClientId, configOpts.ClientSecret)
+	token := base64.StdEncoding.EncodeToString([]byte(base64Data))
 
-	if !validVM && initOpts.Username == "" {
-		initOpts.Username, err = remoteConnectionUsername()
-		if err != nil {
-			return err
-		}
-	}
-
-	state, err := provider.State(mc, false)
+	// Create a new HTTP POST request
+	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return err
+		fmt.Println("Error creating request:", err)
+		os.Exit(1)
 	}
-	if state != define2.Running {
-		return fmt.Errorf("vm %q is not running", mc.Name)
-	}
-
-	username := initOpts.Username
-	if username == "" {
-		username = mc.SSH.RemoteUsername
-	}
-
-	initOpts.Args = []string{"sudo cat /etc/rancher/k3s/k3s.yaml"}
-	output, err := machine.CommonSSHShellString(username, mc.SSH.IdentityPath, mc.Name, mc.SSH.Port, initOpts.Args)
+	// Set headers
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Basic "+token)
+	// Dump the request before sending
+//	requestDump, err := httputil.DumpRequestOut(req, true)
+//	if err != nil {
+//		fmt.Println("Error dumping request:", err)
+//	} else {
+//		fmt.Println("HTTP Request:\n", string(requestDump))
+//	}
+	// Send the request
+	client := &http.Client{}
+	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Printf("Error capturing command output: %v\n", err)
-		return err
+		fmt.Println("Error sending request:", err)
+		os.Exit(1)
+	}
+	defer resp.Body.Close()
+
+	// Print the response
+	fmt.Println("Response Status:", resp.Status)
+
+	if resp.StatusCode != 200 {
+		fmt.Println("failed to get cluster information, please try later")
+		return nil
+	} 
+
+	fmt.Println("successfully registered the cluster")
+	// extract name of the cluster from the http response json data
+	var responseData struct {
+		Name string `json:"name"`
+		PublicKey string `json:"publicKey"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&responseData); err != nil {
+		fmt.Println("Error decoding response:", err)
+		return nil
+	}
+	fmt.Println("Cluster Name:", responseData.Name)
+	fmt.Println("PublicKey:", responseData.PublicKey)
+	initOpts.Name = responseData.Name
+	// Decode the Base64 CA certificate
+	caCertData, err := base64.StdEncoding.DecodeString(responseData.PublicKey)
+	if err != nil {
+		return nil
+	}
+	newKubeConfig := &api.Config{
+		Clusters: map[string]*api.Cluster{
+			responseData.Name: {
+				Server:                   fmt.Sprintf("https://api.%s.k3sphere.io",responseData.Name),
+				CertificateAuthorityData:  caCertData,
+			},
+		},
+		AuthInfos: map[string]*api.AuthInfo{
+			responseData.Name: {
+				Exec: &api.ExecConfig{
+					Command: configOpts.Command,
+					Args: []string{
+						"get-token",
+						"--oidc-issuer-url=https://auth.k3sphere.com/realms/k3sphere",
+						"--oidc-client-id="+configOpts.ClientId,
+						"--oidc-extra-scope=openid",
+					},
+					APIVersion: "client.authentication.k8s.io/v1beta1",
+				},
+			},
+		},
+		Contexts: map[string]*api.Context{
+			responseData.Name: {
+				Cluster:  responseData.Name,
+				AuthInfo: responseData.Name,
+			},
+		},
+		CurrentContext: responseData.Name,
 	}
 
 	// Merge the captured kubeconfig JSON into the current kubeconfig
-	if err := mergeKubeconfig(output); err != nil {
+	if err := mergeKubeconfig(newKubeConfig); err != nil {
 		fmt.Printf("Error merging kubeconfig: %v\n", err)
 		return err
 	}
@@ -153,13 +194,8 @@ func mergeKubeconfigs(currentConfig, newConfig *api.Config) *api.Config {
 	return mergedConfig
 }
 
-func mergeKubeconfig(newConfigBytes []byte) error {
-	// Parse the new kubeconfig YAML
-	fmt.Println(string(newConfigBytes))
-	newKubeConfig, err := clientcmd.Load(newConfigBytes)
-	if err != nil {
-		return fmt.Errorf("failed to parse kubeconfig YAML: %v", err)
-	}
+func mergeKubeconfig(newKubeConfig *api.Config) error {
+
 
 	// Define the kubeconfig path
 	kubeconfigPath := filepath.Join(os.Getenv("HOME"), ".kube", "config")
