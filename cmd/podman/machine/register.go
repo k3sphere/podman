@@ -26,6 +26,7 @@ type Payload struct {
 	Username    string `json:"username"`
 	IP      string `json:"ip"`
 	Region  string `json:"region"`
+	Platform string `json:"platform"`
 	VLAN    string `json:"vlan"`
 	Type    string `json:"type"`
 	Gateway string `json:"gateway"`
@@ -138,6 +139,7 @@ func register(_ *cobra.Command, args []string) error {
 		Region:  registerOptions.Region,
 		IP:      mc.IP,
 		VLAN:    mc.VLAN,
+		Platform: runtime.GOOS,
 		Gateway: registerOptions.Gateway,
 		Type:    registerOptions.Type,
 		Port:    port,
