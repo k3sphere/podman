@@ -233,7 +233,6 @@ jobs:
         if [[ -z $(grep '[^[:space:]]' $releasenotes) ]]; then
           if [[ $VERSION != *-rc* ]]; then
               echo "::notice:: Release does not have release notes"
-              exit 1
           else
           echo "This is a release candidate of Podman v$ver. Full release notes will be available with a later RC." > $releasenotes
           fi
@@ -272,7 +271,7 @@ jobs:
 
         gh release create $VERSION \
             -t $title \
-            --notes-file $VERSION-release-notes.md \
+            --generate-notes \
             --verify-tag \
             $RC \
             $LATEST \
