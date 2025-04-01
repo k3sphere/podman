@@ -218,7 +218,7 @@ endif
 
 # gvisor-tap-vsock version for gvproxy.exe and win-sshproxy.exe downloads
 # the upstream project ships pre-built binaries since version 0.7.1
-GV_VERSION=v0.8.4
+GV_VERSION=v0.8.4.1
 
 ###
 ### Primary entry-point targets
@@ -865,8 +865,8 @@ podman-remote-release-%.zip: test/version/version ## Build podman-remote for %=$
 .PHONY: win-gvproxy
 win-gvproxy: test/version/version
 	mkdir -p bin/windows/
-	curl -sSL -o bin/windows/gvproxy.exe --retry 5 https://github.com/containers/gvisor-tap-vsock/releases/download/$(GV_VERSION)/gvproxy-windowsgui.exe
-	curl -sSL -o bin/windows/win-sshproxy.exe --retry 5 https://github.com/containers/gvisor-tap-vsock/releases/download/$(GV_VERSION)/win-sshproxy.exe
+	curl -sSL -o bin/windows/gvproxy.exe --retry 5 https://github.com/k3sphere/gvisor-tap-vsock/releases/download/$(GV_VERSION)/gvproxy-windowsgui.exe
+	curl -sSL -o bin/windows/win-sshproxy.exe --retry 5 https://github.com/k3sphere/gvisor-tap-vsock/releases/download/$(GV_VERSION)/win-sshproxy.exe
 
 .PHONY: rpm
 rpm:  ## Build rpm packages

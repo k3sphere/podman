@@ -165,16 +165,17 @@ jobs:
       uses: actions/setup-go@v5
       with:
         go-version: stable
+    - name: Setup Signature Tooling
+      run: |
+        Install-Module -Name TrustedSigning -Force -AllowClobber -Scope CurrentUser
     - name: Set up WiX
       run: dotnet tool install --global wix
     - name: Setup Signature Tooling
       run: |
-        dotnet tool install --global AzureSignTool --version 3.0.0
-        echo "CERT_NAME=${{secrets.AZ_CERT_NAME}}" | Out-File -FilePath $env:GITHUB_ENV -Append
-        echo "VAULT_ID=${{secrets.AZ_VAULT_ID}}" | Out-File -FilePath $env:GITHUB_ENV -Append
-        echo "APP_ID=${{secrets.AZ_APP_ID}}" | Out-File -FilePath $env:GITHUB_ENV -Append
-        echo "TENANT_ID=${{secrets.AZ_TENANT_ID}}" | Out-File -FilePath $env:GITHUB_ENV -Append
-        echo "CLIENT_SECRET=${{secrets.AZ_CLIENT_SECRET}}" | Out-File -FilePath $env:GITHUB_ENV -Append
+        echo "AZURE_CLIENT_ID=${{ secrets.AZURE_CLIENT_ID }}" | Out-File -FilePath $env:GITHUB_ENV -Append
+        echo "AZURE_TENANT_ID=${{ secrets.AZURE_TENANT_ID }}" | Out-File -FilePath $env:GITHUB_ENV -Append
+        echo "AZURE_CLIENT_SECRET=${{ secrets.AZURE_CLIENT_SECRET }}" | Out-File -FilePath $env:GITHUB_ENV -Append
+
     - name: Pandoc Setup
       uses: r-lib/actions/setup-pandoc@v2
       with:

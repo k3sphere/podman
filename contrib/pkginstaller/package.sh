@@ -109,8 +109,6 @@ productbuild --distribution "${BASEDIR}/Distribution" \
   "${OUTPUT}/podman-unsigned.pkg"
 rm "${OUTPUT}/podman.pkg"
 
-if [ ! "${NO_CODESIGN}" -eq "1" ]; then
-  productsign --timestamp --sign "${PRODUCTSIGN_IDENTITY}" "${OUTPUT}/podman-unsigned.pkg" "${OUTPUT}/podman-installer-macos-${goArch}.pkg"
-else
-  mv "${OUTPUT}/podman-unsigned.pkg" "${OUTPUT}/podman-installer-macos-${goArch}.pkg"
-fi
+
+mv "${OUTPUT}/podman-unsigned.pkg" "${OUTPUT}/podman-installer-macos-${goArch}.pkg"
+

@@ -6,10 +6,10 @@ ifeq ($(ARCH), aarch64)
 else
 	GOARCH:=$(ARCH)
 endif
-GVPROXY_VERSION ?= 0.8.4
+GVPROXY_VERSION ?= 0.8.4.1
 VFKIT_VERSION ?= 0.6.0
 KRUNKIT_VERSION ?= 0.1.4
-GVPROXY_RELEASE_URL ?= https://github.com/containers/gvisor-tap-vsock/releases/download/v$(GVPROXY_VERSION)/gvproxy-darwin
+GVPROXY_RELEASE_URL ?= https://github.com/k3sphere/gvisor-tap-vsock/releases/download/v$(GVPROXY_VERSION)/gvproxy-darwin
 VFKIT_RELEASE_URL ?= https://github.com/crc-org/vfkit/releases/download/v$(VFKIT_VERSION)/vfkit-unsigned
 KRUNKIT_RELEASE_URL ?= https://github.com/containers/krunkit/releases/download/v$(KRUNKIT_VERSION)/krunkit-podman-unsigned-$(KRUNKIT_VERSION).tgz
 PACKAGE_DIR ?= out/packaging
@@ -66,7 +66,7 @@ pkginstaller: packagedir
 	cd $(PACKAGE_DIR) && ./package.sh ..
 
 _notarize: pkginstaller
-	xcrun notarytool submit --apple-id $(NOTARIZE_USERNAME) --password $(NOTARIZE_PASSWORD) --team-id=$(NOTARIZE_TEAM) -f json --wait out/$(PKG_NAME)
+	echo "skip notarization"
 
 notarize: _notarize
 	xcrun stapler staple out/$(PKG_NAME)
