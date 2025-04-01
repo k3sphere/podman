@@ -69,7 +69,7 @@ _notarize: pkginstaller
 	echo "skip notarization"
 
 notarize: _notarize
-	xcrun stapler staple out/$(PKG_NAME)
+	echo "xcrun stapler staple out/$(PKG_NAME)"
 
 .PHONY: clean clean-pkgroot
 clean:
